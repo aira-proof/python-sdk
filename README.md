@@ -2,6 +2,10 @@
 
 Legal infrastructure for AI agents. Notarize actions, register agents, build evidence packages, manage lifecycle, escrow liability.
 
+[![PyPI version](https://img.shields.io/pypi/v/aira-sdk.svg)](https://pypi.org/project/aira-sdk/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+
 ```bash
 pip install aira-sdk
 ```
@@ -27,7 +31,7 @@ print(receipt.signature)       # ed25519:base64url...
 print(receipt.action_id)       # uuid
 ```
 
-## Decorator — Auto-Notarize Functions
+## Decorator -- Auto-Notarize Functions
 
 ```python
 @aira.trace(agent_id="lending-agent", action_type="loan_decision")
@@ -38,6 +42,8 @@ def approve_loan(application):
 # Every call to approve_loan() is automatically notarized
 result = approve_loan({"credit_score": 742, "income": 45000})
 ```
+
+The decorator is non-blocking -- if notarization fails, your function still returns normally. Arguments and return values are never sent to the API; only a metadata hash is recorded.
 
 ## Async Support
 
@@ -76,8 +82,47 @@ version = aira.publish_version(
     changelog="Initial release",
 )
 
+# List all agents
+agents, pagination = aira.list_agents(page=1)
+
 # Decommission
 aira.decommission_agent("old-agent")
+```
+
+## Action Notarization
+
+```python
+# Notarize with full parameters
+receipt = aira.notarize(
+    action_type="loan_approved",
+    details="Approved loan #4521 for $25,000",
+    agent_id="lending-agent",
+    model_id="claude-sonnet-4-6",
+    instruction_hash="sha256:...",
+    idempotency_key="loan-4521",  # Prevents duplicate notarizations
+)
+
+# Retrieve action details
+action = aira.get_action("action-uuid")
+print(action.action_type)
+print(action.receipt)
+
+# List actions with filters
+actions, pagination = aira.list_actions(
+    page=1,
+    action_type="loan_approved",
+    agent_id="lending-agent",
+)
+
+# Human co-signature
+aira.authorize_action("action-uuid", authorizer_email="compliance@acme.com")
+
+# Legal hold
+aira.set_legal_hold("action-uuid")
+aira.release_legal_hold("action-uuid")
+
+# Chain of custody
+chain = aira.get_action_chain("action-uuid")
 ```
 
 ## Evidence Packages
@@ -85,13 +130,23 @@ aira.decommission_agent("old-agent")
 ```python
 # Bundle actions into a sealed evidence package
 package = aira.create_evidence_package(
-    title="Q1 2026 Audit Trail — Lending Agent",
+    title="Q1 2026 Audit Trail -- Lending Agent",
     action_ids=["act-uuid-1", "act-uuid-2", "act-uuid-3"],
     description="All lending decisions for regulatory review",
 )
 
 print(package.package_hash)  # Cryptographically sealed
 print(package.signature)     # Ed25519 signed
+
+# List and retrieve
+packages, pagination = aira.list_evidence_packages(page=1)
+pkg = aira.get_evidence_package("package-uuid")
+
+# Time travel -- query actions at a point in time
+result = aira.time_travel(
+    agent_id="lending-agent",
+    point_in_time="2026-01-15T00:00:00Z",
+)
 ```
 
 ## Compliance Snapshots
@@ -101,6 +156,12 @@ snapshot = aira.create_compliance_snapshot(
     framework="eu-ai-act",
     agent_slug="lending-agent",
     findings={"art_12_logging": "pass", "art_14_oversight": "pass"},
+)
+
+# List by framework
+snapshots, pagination = aira.list_compliance_snapshots(
+    page=1,
+    framework="eu-ai-act",
 )
 ```
 
@@ -115,6 +176,15 @@ aira.set_agent_will(
     data_retention_days=2555,
     notify_emails=["compliance@acme.com"],
 )
+
+# Retrieve will
+will = aira.get_agent_will("support-agent-v2")
+
+# Issue death certificate (triggers succession)
+aira.issue_death_certificate("old-agent", reason="Replaced by v3")
+
+# Retrieve death certificate
+cert = aira.get_death_certificate("old-agent")
 ```
 
 ## Escrow
@@ -128,6 +198,28 @@ tx = aira.escrow_deposit(account.id, amount=5000.00, description="10% liability 
 
 # Release after successful completion
 aira.escrow_release(account.id, amount=5000.00)
+
+# Dispute if something goes wrong
+aira.escrow_dispute(account.id, amount=2000.00, reason="Incorrect vendor payment")
+
+# List accounts
+accounts, pagination = aira.list_escrow_accounts(page=1)
+```
+
+## Cases (Multi-Model Adjudication)
+
+```python
+# Run a case across multiple AI models
+case = aira.run_case(
+    details="Should we approve loan application #4521?",
+    models=["claude-sonnet-4-6", "gpt-4o", "gemini-2.0-flash"],
+)
+
+print(case["consensus"]["decision"])    # "approve"
+print(case["consensus"]["confidence"])  # 0.92
+
+# List cases
+cases, pagination = aira.list_cases(page=1)
 ```
 
 ## Ask Aira (Chat)
@@ -140,7 +232,7 @@ print(response["content"])
 ## Public Verification
 
 ```python
-# Anyone can verify — no auth needed
+# Anyone can verify -- no auth needed
 result = aira.verify_action("action-uuid")
 print(result.valid)     # True
 print(result.message)   # "Action receipt exists and signing key is valid."
@@ -169,8 +261,22 @@ aira = Aira(
 )
 ```
 
+## Development
+
+```bash
+git clone https://github.com/aira-verify/python-sdk.git
+cd python-sdk
+pip install -e ".[dev]"
+pytest
+```
+
+## License
+
+MIT
+
 ## Links
 
 - [Documentation](https://docs.airaproof.com)
 - [API Reference](https://docs.airaproof.com/docs/api-reference)
 - [Dashboard](https://app.airaproof.com)
+- [GitHub](https://github.com/aira-verify/python-sdk)

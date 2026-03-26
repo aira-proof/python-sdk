@@ -29,7 +29,8 @@ crewai = ["crewai>=0.80"]
 [project.urls]
 Homepage = "https://airaproof.com"
 Documentation = "https://docs.airaproof.com"
-Repository = "https://github.com/aira-proof/aira-python"
+Repository = "https://github.com/aira-verify/python-sdk"
+Issues = "https://github.com/aira-verify/python-sdk/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["aira"]

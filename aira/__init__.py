@@ -18,7 +18,7 @@ Usage:
         return model.predict(application)
 """
 
-from aira.client import Aira, AsyncAira
+from aira.client import Aira, AsyncAira, AiraError
 from aira.types import (
     ActionReceipt,
     ActionDetail,
@@ -35,6 +35,7 @@ __version__ = "0.1.0"
 __all__ = [
     "Aira",
     "AsyncAira",
+    "AiraError",
     "ActionReceipt",
     "ActionDetail",
     "AgentDetail",
