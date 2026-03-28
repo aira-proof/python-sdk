@@ -1,6 +1,20 @@
 # Aira Python SDK
 
-Legal infrastructure for AI agents. Notarize actions, register agents, build evidence packages, manage lifecycle, escrow liability.
+**Legal infrastructure for AI agents.** Cryptographic proof for every action your AI agent takes.
+
+Aira provides the accountability layer that autonomous AI agents need to operate in regulated environments. Every action is notarized with Ed25519 signatures and RFC 3161 timestamps — producing court-admissible proof that an action happened, who authorized it, and what decision was made.
+
+**What you get:**
+- **Notarize actions** — cryptographic receipts for every agent decision, email, transaction
+- **Register agents** — verifiable identity with versioned configs and public profiles
+- **Multi-model consensus** — run the same decision through multiple AI models, flag disagreements
+- **Evidence packages** — sealed, tamper-proof bundles for legal discovery and audit
+- **Agent lifecycle** — wills, succession plans, death certificates, compliance snapshots
+- **Liability commitments** — record accountability commitments with cryptographic proof
+- **Human authorization** — require human co-signatures on high-stakes actions
+- **Public verification** — anyone can verify a receipt without an account
+
+Built for EU AI Act, SR 11-7, and GDPR compliance. Self-hostable. Open-source SDK.
 
 [![PyPI version](https://img.shields.io/pypi/v/aira-sdk.svg)](https://pypi.org/project/aira-sdk/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
