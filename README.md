@@ -187,16 +187,18 @@ aira.issue_death_certificate("old-agent", reason="Replaced by v3")
 cert = aira.get_death_certificate("old-agent")
 ```
 
-## Escrow
+## Escrow (Liability Commitments)
+
+Escrow accounts are **accountability ledgers** — they record liability commitments with cryptographic proof. No real funds are custodied by Aira.
 
 ```python
-# Create escrow account
+# Record a liability commitment
 account = aira.create_escrow_account(purpose="Vendor contract #4521")
 
-# Deposit before agent acts
-tx = aira.escrow_deposit(account.id, amount=5000.00, description="10% liability deposit")
+# Record commitment before agent acts
+tx = aira.escrow_deposit(account.id, amount=5000.00, description="10% liability commitment")
 
-# Release after successful completion
+# Release commitment after successful completion
 aira.escrow_release(account.id, amount=5000.00)
 
 # Dispute if something goes wrong
