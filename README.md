@@ -241,9 +241,14 @@ cases, pagination = aira.list_cases(page=1)
 ## Ask Aira (Chat)
 
 ```python
-response = aira.ask("How many email actions were notarized this week?")
+# Specify a model explicitly
+response = aira.ask("How many email actions were notarized this week?", model="claude-sonnet-4-6")
 print(response["content"])
 ```
+
+The `model` parameter is optional. If omitted, the organization's default chat model is used.
+
+> **Note:** A default chat model must be configured in your dashboard (Settings → Models) before using `ask()` without an explicit model.
 
 ## Public Verification
 
