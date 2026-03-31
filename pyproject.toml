@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "aira-sdk"
-version = "0.1.3"
+version = "0.2.0"
 description = "Python SDK for Aira — legal infrastructure for AI agents"
 readme = "README.md"
 license = "MIT"
@@ -25,6 +25,25 @@ dependencies = [
 [project.optional-dependencies]
 langchain = ["langchain-core>=0.3"]
 crewai = ["crewai>=0.80"]
+openai-agents = ["openai>=1.0"]
+google-adk = ["google-adk>=0.1"]
+bedrock = ["boto3>=1.34"]
+mcp = ["mcp>=1.0"]
+cli = ["typer>=0.12", "rich>=13.0"]
+webhooks = []
+all = [
+    "aira-sdk[langchain]",
+    "aira-sdk[crewai]",
+    "aira-sdk[openai-agents]",
+    "aira-sdk[google-adk]",
+    "aira-sdk[bedrock]",
+    "aira-sdk[mcp]",
+    "aira-sdk[cli]",
+]
+
+[project.scripts]
+aira = "aira.cli:app"
+aira-mcp = "aira.extras.mcp:main"
 
 [project.urls]
 Homepage = "https://airaproof.com"

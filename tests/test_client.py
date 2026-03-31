@@ -406,3 +406,210 @@ class TestAsync:
         async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
             with patch.object(c._client, "post", return_value=_resp({"result_count": 3})):
                 assert (await c.time_travel("2026-03-20T00:00:00Z"))["result_count"] == 3
+
+    @pytest.mark.asyncio
+    async def test_authorize_action(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "post", return_value=_resp({"ok": True})):
+                assert (await c.authorize_action("act-1"))["ok"]
+
+    @pytest.mark.asyncio
+    async def test_set_legal_hold(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "post", return_value=_resp({"legal_hold": True})):
+                assert (await c.set_legal_hold("act-1"))["legal_hold"]
+
+    @pytest.mark.asyncio
+    async def test_release_legal_hold(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "delete", return_value=_resp({"legal_hold": False})):
+                assert not (await c.release_legal_hold("act-1"))["legal_hold"]
+
+    @pytest.mark.asyncio
+    async def test_get_action_chain(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "get", return_value=_resp({"chain": [{"id": "1"}, {"id": "2"}]})):
+                assert len(await c.get_action_chain("act-1")) == 2
+
+    @pytest.mark.asyncio
+    async def test_get_agent(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "get", return_value=_resp(AGENT)):
+                assert (await c.get_agent("my-agent")).display_name == "My Agent"
+
+    @pytest.mark.asyncio
+    async def test_update_agent(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "put", return_value=_resp({**AGENT, "display_name": "Updated"})):
+                assert (await c.update_agent("my-agent", display_name="Updated")).display_name == "Updated"
+
+    @pytest.mark.asyncio
+    async def test_publish_version(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "post", return_value=_resp(VERSION, 201)):
+                assert (await c.publish_version("my-agent", "1.0.0")).version == "1.0.0"
+
+    @pytest.mark.asyncio
+    async def test_list_versions(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "get", return_value=_resp([VERSION])):
+                assert len(await c.list_versions("my-agent")) == 1
+
+    @pytest.mark.asyncio
+    async def test_list_versions_empty(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "get", return_value=_resp({})):
+                assert await c.list_versions("my-agent") == []
+
+    @pytest.mark.asyncio
+    async def test_decommission_agent(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "post", return_value=_resp({**AGENT, "status": "decommissioned"})):
+                assert (await c.decommission_agent("my-agent")).status == "decommissioned"
+
+    @pytest.mark.asyncio
+    async def test_transfer_agent(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "post", return_value=_resp({"status": "transferred"})):
+                assert (await c.transfer_agent("my-agent", "org-2", reason="M&A"))["status"] == "transferred"
+
+    @pytest.mark.asyncio
+    async def test_get_agent_actions(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "get", return_value=_paginated_resp([{"id": "a1"}])):
+                assert (await c.get_agent_actions("my-agent")).total == 1
+
+    @pytest.mark.asyncio
+    async def test_run_case(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "post", return_value=_resp({"case_id": "c1"})):
+                assert (await c.run_case("test", ["gpt-4"]))["case_id"] == "c1"
+
+    @pytest.mark.asyncio
+    async def test_run_case_with_options(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "post", return_value=_resp({"case_id": "c1"})) as m:
+                await c.run_case("test", ["gpt-4"], temperature=0.5)
+                body = m.call_args[1]["json"]
+                assert body["options"]["temperature"] == 0.5
+
+    @pytest.mark.asyncio
+    async def test_get_case(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "get", return_value=_resp({"case_id": "c1", "status": "complete"})):
+                assert (await c.get_case("c1"))["status"] == "complete"
+
+    @pytest.mark.asyncio
+    async def test_list_cases(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "get", return_value=_paginated_resp([{"id": "c1"}])):
+                assert (await c.list_cases()).total == 1
+
+    @pytest.mark.asyncio
+    async def test_get_receipt(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "get", return_value=_resp({"receipt_id": "r1"})):
+                assert (await c.get_receipt("r1"))["receipt_id"] == "r1"
+
+    @pytest.mark.asyncio
+    async def test_export_receipt(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "get", return_value=_resp({"url": "https://..."})):
+                assert (await c.export_receipt("r1", format="pdf"))["url"]
+
+    @pytest.mark.asyncio
+    async def test_list_evidence_packages(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "get", return_value=_paginated_resp([{"id": "p1"}])):
+                assert (await c.list_evidence_packages()).total == 1
+
+    @pytest.mark.asyncio
+    async def test_get_evidence_package(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "get", return_value=_resp(EVIDENCE)):
+                assert (await c.get_evidence_package("pkg-1")).title == "Test"
+
+    @pytest.mark.asyncio
+    async def test_liability_chain(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "get", return_value=_resp({"chain": [{"id": "1"}]})):
+                assert len(await c.liability_chain("act-1")) == 1
+
+    @pytest.mark.asyncio
+    async def test_get_agent_will(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "get", return_value=_resp({"id": "w1"})):
+                assert (await c.get_agent_will("a"))["id"] == "w1"
+
+    @pytest.mark.asyncio
+    async def test_issue_death_certificate(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "post", return_value=_resp({"id": "dc-1"}, 201)):
+                assert (await c.issue_death_certificate("a"))["id"] == "dc-1"
+
+    @pytest.mark.asyncio
+    async def test_get_death_certificate(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "get", return_value=_resp({"id": "dc-1"})):
+                assert (await c.get_death_certificate("a"))["id"] == "dc-1"
+
+    @pytest.mark.asyncio
+    async def test_list_compliance_snapshots(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "get", return_value=_paginated_resp([{"id": "s1"}])):
+                assert (await c.list_compliance_snapshots(framework="eu-ai-act")).total == 1
+
+    @pytest.mark.asyncio
+    async def test_create_escrow_account(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "post", return_value=_resp(ESCROW_ACC, 201)):
+                assert (await c.create_escrow_account(purpose="Test")).balance == "5000.00"
+
+    @pytest.mark.asyncio
+    async def test_list_escrow_accounts(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "get", return_value=_paginated_resp([{"id": "e1"}])):
+                assert (await c.list_escrow_accounts()).total == 1
+
+    @pytest.mark.asyncio
+    async def test_get_escrow_account(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "get", return_value=_resp(ESCROW_ACC)):
+                assert (await c.get_escrow_account("esc-1")).status == "active"
+
+    @pytest.mark.asyncio
+    async def test_escrow_release(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "post", return_value=_resp({**ESCROW_TX, "transaction_type": "release"}, 201)):
+                assert (await c.escrow_release("esc-1", 2000.0)).transaction_type == "release"
+
+    @pytest.mark.asyncio
+    async def test_escrow_dispute(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "post", return_value=_resp({**ESCROW_TX, "transaction_type": "dispute", "status": "disputed"}, 201)):
+                assert (await c.escrow_dispute("esc-1", 1000.0, "Agent error")).status == "disputed"
+
+    @pytest.mark.asyncio
+    async def test_ask(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "post", return_value=_resp({"content": "hello", "tools_used": []})):
+                assert (await c.ask("hi"))["content"] == "hello"
+
+    @pytest.mark.asyncio
+    async def test_trace_notarize_failure_non_blocking(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "post", side_effect=Exception("Network down")):
+                @c.trace(agent_id="test")
+                async def important():
+                    return "critical"
+                assert await important() == "critical"
+
+    @pytest.mark.asyncio
+    async def test_trace_include_result(self):
+        async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
+            with patch.object(c._client, "post", return_value=_resp(RECEIPT, 201)) as m:
+                @c.trace(agent_id="test", include_result=True)
+                async def compute():
+                    return 42
+                assert await compute() == 42
+                assert "42" in m.call_args[1]["json"]["details"]

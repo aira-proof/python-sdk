@@ -10,6 +10,7 @@ from typing import Any, Callable
 
 import httpx
 
+from aira._offline import OfflineQueue
 from aira.types import (
     ActionDetail,
     ActionReceipt,
@@ -108,9 +109,11 @@ class Aira(_BaseMixin):
         api_key: str,
         base_url: str = DEFAULT_BASE_URL,
         timeout: float = DEFAULT_TIMEOUT,
+        offline: bool = False,
     ) -> None:
         _validate_api_key(api_key)
         self.base_url = base_url.rstrip("/")
+        self._api_key = api_key
         self._client = httpx.Client(
             base_url=f"{self.base_url}/api/v1",
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
@@ -122,6 +125,7 @@ class Aira(_BaseMixin):
             headers={"Content-Type": "application/json"},
             timeout=timeout,
         )
+        self._queue: OfflineQueue | None = OfflineQueue() if offline else None
 
     def close(self) -> None:
         self._client.close()
@@ -133,10 +137,18 @@ class Aira(_BaseMixin):
     def __exit__(self, *args: Any) -> None:
         self.close()
 
+    def _headers(self) -> dict:
+        return {"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"}
+
     def _post(self, path: str, body: dict) -> dict:
+        if self._queue is not None:
+            qid = self._queue.enqueue("POST", path, body)
+            return {"_offline": True, "_queue_id": qid}
         return _handle_response(self._client.post(path, json=body))
 
     def _get(self, path: str, params: dict | None = None) -> dict:
+        if self._queue is not None:
+            raise AiraError(0, "OFFLINE", "GET requests not available in offline mode")
         return _handle_response(self._client.get(path, params=params))
 
     def _put(self, path: str, body: dict) -> dict:
@@ -371,6 +383,29 @@ class Aira(_BaseMixin):
         """Ask Aira a question about your data."""
         return self._post("/chat", _build_body(message=message, history=history, model=model))
 
+    # ==================== Offline sync ====================
+
+    def sync(self) -> list:
+        """Flush offline queue to API. Returns list of API responses."""
+        if self._queue is None:
+            raise ValueError("sync() is only available in offline mode")
+        items = self._queue.drain()
+        results = []
+        for item in items:
+            resp = self._client.request(item.method, f"{self.base_url}/api/v1{item.path}", json=item.body, headers=self._headers())
+            if resp.status_code >= 400:
+                # Continue flushing but track failures
+                results.append({"_error": True, "_status": resp.status_code, "_queue_id": item.id})
+            else:
+                results.append(resp.json())
+        return results
+
+    # ==================== Session ====================
+
+    def session(self, agent_id: str, **defaults) -> AiraSession:
+        """Create a scoped session with pre-filled defaults."""
+        return AiraSession(self, agent_id=agent_id, **defaults)
+
     # ==================== Decorator ====================
 
     def trace(
@@ -415,6 +450,28 @@ class Aira(_BaseMixin):
                 return result
             return wrapper
         return decorator
+
+
+class AiraSession:
+    """Scoped session with pre-filled defaults."""
+
+    def __init__(self, client: Aira, agent_id: str, **defaults: Any) -> None:
+        self._client = client
+        self._defaults = {"agent_id": agent_id, **defaults}
+
+    def notarize(self, action_type: str, details: str, **kwargs: Any) -> ActionReceipt:
+        merged = {**self._defaults, **kwargs}
+        return self._client.notarize(action_type=action_type, details=details, **merged)
+
+    def trace(self, **kwargs: Any) -> Callable:
+        merged = {**self._defaults, **kwargs}
+        return self._client.trace(**merged)
+
+    def __enter__(self) -> AiraSession:
+        return self
+
+    def __exit__(self, *args: Any) -> None:
+        pass
 
 
 class AsyncAira(_BaseMixin):
@@ -611,6 +668,12 @@ class AsyncAira(_BaseMixin):
     async def ask(self, message: str, history: list[dict] | None = None, model: str | None = None) -> dict:
         return await self._post("/chat", _build_body(message=message, history=history, model=model))
 
+    # ==================== Session ====================
+
+    def session(self, agent_id: str, **defaults: Any) -> AsyncAiraSession:
+        """Create a scoped async session with pre-filled defaults."""
+        return AsyncAiraSession(self, agent_id=agent_id, **defaults)
+
     # ==================== Decorator ====================
 
     def trace(self, agent_id: str, action_type: str = "function_call", model_id: str | None = None, include_result: bool = False) -> Callable:
@@ -631,3 +694,25 @@ class AsyncAira(_BaseMixin):
                 return result
             return wrapper
         return decorator
+
+
+class AsyncAiraSession:
+    """Scoped async session with pre-filled defaults."""
+
+    def __init__(self, client: AsyncAira, agent_id: str, **defaults: Any) -> None:
+        self._client = client
+        self._defaults = {"agent_id": agent_id, **defaults}
+
+    async def notarize(self, action_type: str, details: str, **kwargs: Any) -> ActionReceipt:
+        merged = {**self._defaults, **kwargs}
+        return await self._client.notarize(action_type=action_type, details=details, **merged)
+
+    def trace(self, **kwargs: Any) -> Callable:
+        merged = {**self._defaults, **kwargs}
+        return self._client.trace(**merged)
+
+    async def __aenter__(self) -> AsyncAiraSession:
+        return self
+
+    async def __aexit__(self, *args: Any) -> None:
+        pass
