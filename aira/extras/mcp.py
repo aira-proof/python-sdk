@@ -101,6 +101,7 @@ def main():
     import asyncio
     from mcp.server.stdio import stdio_server
     from mcp.server import InitializationOptions
+    from mcp.server.lowlevel.server import NotificationOptions
 
     server = create_server()
 
@@ -108,10 +109,10 @@ def main():
         async with stdio_server() as (read_stream, write_stream):
             init_options = InitializationOptions(
                 server_name="aira",
-                server_version="0.2.0",
+                server_version="0.2.1",
                 capabilities=server.get_capabilities(
-                    notification_options=None,
-                    experimental_capabilities=None,
+                    notification_options=NotificationOptions(),
+                    experimental_capabilities={},
                 ),
             )
             await server.run(read_stream, write_stream, init_options)
