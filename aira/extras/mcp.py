@@ -100,12 +100,21 @@ def main():
     """Entry point for aira-mcp console script."""
     import asyncio
     from mcp.server.stdio import stdio_server
+    from mcp.server import InitializationOptions
 
     server = create_server()
 
     async def run():
         async with stdio_server() as (read_stream, write_stream):
-            await server.run(read_stream, write_stream)
+            init_options = InitializationOptions(
+                server_name="aira",
+                server_version="0.2.0",
+                capabilities=server.get_capabilities(
+                    notification_options=None,
+                    experimental_capabilities=None,
+                ),
+            )
+            await server.run(read_stream, write_stream, init_options)
 
     asyncio.run(run())
 

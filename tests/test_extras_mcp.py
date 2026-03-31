@@ -38,8 +38,11 @@ class _MockServer:
             return fn
         return decorator
 
-    async def run(self, read_stream, write_stream):
+    async def run(self, read_stream, write_stream, initialization_options=None):
         pass
+
+    def get_capabilities(self, notification_options=None, experimental_capabilities=None):
+        return {}
 
 
 class _MockTool:
@@ -56,6 +59,7 @@ class _MockTextContent:
 
 
 _mock_mcp_server.Server = _MockServer
+_mock_mcp_server.InitializationOptions = type("InitializationOptions", (), {"__init__": lambda self, **kw: None})
 _mock_mcp_types.Tool = _MockTool
 _mock_mcp_types.TextContent = _MockTextContent
 
