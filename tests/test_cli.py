@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+typer = pytest.importorskip("typer", reason="typer not installed — pip install aira-sdk[cli]")
 from typer.testing import CliRunner
 
 from aira.cli import app

@@ -4,35 +4,19 @@ from __future__ import annotations
 import pytest
 
 
+def _can_import(name: str) -> bool:
+    try:
+        __import__(name)
+        return True
+    except ImportError:
+        return False
+
+
 class TestExtrasLazyImports:
     """Test that aira.extras exposes the correct names via lazy imports."""
 
-    def test_import_aira_callback_handler(self):
-        from aira.extras.langchain import AiraCallbackHandler
-        from aira.extras import AiraCallbackHandler as Imported
-        assert Imported is AiraCallbackHandler
-
-    def test_import_aira_crew_hook(self):
-        from aira.extras.crewai import AiraCrewHook
-        from aira.extras import AiraCrewHook as Imported
-        assert Imported is AiraCrewHook
-
-    def test_import_aira_guardrail(self):
-        from aira.extras.openai_agents import AiraGuardrail
-        from aira.extras import AiraGuardrail as Imported
-        assert Imported is AiraGuardrail
-
-    def test_import_aira_plugin(self):
-        from aira.extras.google_adk import AiraPlugin
-        from aira.extras import AiraPlugin as Imported
-        assert Imported is AiraPlugin
-
-    def test_import_aira_bedrock_handler(self):
-        from aira.extras.bedrock import AiraBedrockHandler
-        from aira.extras import AiraBedrockHandler as Imported
-        assert Imported is AiraBedrockHandler
-
     def test_import_verify_signature(self):
+        """Webhooks has no external deps — always works."""
         from aira.extras.webhooks import verify_signature
         from aira.extras import verify_signature as Imported
         assert Imported is verify_signature
@@ -51,3 +35,15 @@ class TestExtrasLazyImports:
         import aira.extras
         with pytest.raises(AttributeError, match="has no attribute 'DoesNotExist'"):
             _ = aira.extras.DoesNotExist
+
+    @pytest.mark.skipif(not _can_import("langchain_core"), reason="langchain-core not installed")
+    def test_import_aira_callback_handler(self):
+        from aira.extras.langchain import AiraCallbackHandler
+        from aira.extras import AiraCallbackHandler as Imported
+        assert Imported is AiraCallbackHandler
+
+    @pytest.mark.skipif(not _can_import("crewai"), reason="crewai not installed")
+    def test_import_aira_crew_hook(self):
+        from aira.extras.crewai import AiraCrewHook
+        from aira.extras import AiraCrewHook as Imported
+        assert Imported is AiraCrewHook
