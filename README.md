@@ -1,6 +1,6 @@
 # Aira Python SDK
 
-**Legal infrastructure for AI agents.**
+**AI compliance infrastructure for AI agents.**
 
 [![PyPI version](https://img.shields.io/pypi/v/aira-sdk.svg)](https://pypi.org/project/aira-sdk/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
