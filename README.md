@@ -421,6 +421,65 @@ print(rep["score"])  # 84
 print(rep["tier"])   # "Verified"
 ```
 
+### Endpoint Verification
+
+Control which external APIs your agents can call. When `endpoint_url` is passed to `notarize()`, Aira checks it against your org's whitelist. Unrecognized endpoints are blocked in strict mode.
+
+#### Notarize with endpoint_url
+
+```python
+receipt = aira.notarize(
+    action_type="api_call",
+    details="Charged customer $49.99 for subscription renewal",
+    agent_id="billing-agent",
+    model_id="claude-sonnet-4-6",
+    endpoint_url="https://api.stripe.com/v1/charges",
+)
+```
+
+#### Handle ENDPOINT_NOT_WHITELISTED
+
+```python
+from aira import Aira, AiraError
+
+try:
+    receipt = aira.notarize(
+        action_type="api_call",
+        details="Send SMS via new provider",
+        agent_id="notifications-agent",
+        endpoint_url="https://api.newprovider.com/v1/sms",
+    )
+except AiraError as e:
+    if e.code == "ENDPOINT_NOT_WHITELISTED":
+        print(f"Blocked: {e.message}")
+        print(f"Approval request: {e.details['approval_id']}")
+        print(f"Suggested pattern: {e.details['url_pattern_suggested']}")
+    else:
+        raise
+```
+
+#### Manage whitelist via API
+
+```python
+# List current whitelist
+entries = aira.list_endpoint_whitelist()
+
+# Add a new endpoint pattern
+entry = aira.add_endpoint_whitelist(
+    url_pattern="https://api.twilio.com/*",
+    name="Twilio API",
+)
+
+# List pending approval requests
+approvals = aira.list_endpoint_approvals()
+
+# Approve a pending request (admin only)
+aira.approve_endpoint(approval_id="eap_def456")
+
+# Delete a whitelist entry (admin only)
+aira.delete_endpoint_whitelist(entry_id="ewl_abc123")
+```
+
 ### Trust Policy in Integrations
 
 Pass a `trust_policy` to any framework integration to run automated trust checks before agent interactions:
