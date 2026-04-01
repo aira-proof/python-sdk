@@ -88,3 +88,59 @@ class TestAiraBedrockHandler:
         wrapped = handler.wrap_invoke_model(bedrock)
         result = wrapped(modelId="m1")
         assert result == {"ok": True}  # Original call still succeeds
+
+    def test_trust_policy_enriches_details(self, mock_client):
+        handler = AiraBedrockHandler(mock_client, agent_id="a1", trust_policy={
+            "verify_counterparty": True,
+            "min_reputation": 60,
+        })
+        mock_client.get_agent_did.return_value = {"did": "did:web:airaproof.com:agents:model"}
+        mock_client.get_reputation.return_value = {"score": 85, "tier": "gold"}
+        handler.notarize_invocation("anthropic.claude-v2")
+        details = mock_client.notarize.call_args[1]["details"]
+        assert "trust:" in details
+        assert '"did_resolved": true' in details
+        assert '"reputation_score": 85' in details
+
+    def test_trust_policy_blocks_revoked_vc(self, mock_client):
+        handler = AiraBedrockHandler(mock_client, agent_id="a1", trust_policy={
+            "verify_counterparty": True,
+            "require_valid_vc": True,
+            "block_revoked_vc": True,
+        })
+        mock_client.get_agent_did.return_value = {"did": "did:web:bad"}
+        mock_client.get_agent_credential.return_value = {"id": "vc_1"}
+        mock_client.verify_credential.return_value = {"valid": False}
+        handler.notarize_invocation("bad-model")
+        mock_client.notarize.assert_not_called()
+
+    def test_trust_policy_doesnt_block_unregistered(self, mock_client):
+        handler = AiraBedrockHandler(mock_client, agent_id="a1", trust_policy={
+            "verify_counterparty": True,
+            "block_unregistered": False,
+        })
+        mock_client.get_agent_did.side_effect = Exception("Not found")
+        handler.notarize_invocation("unknown-model")
+        mock_client.notarize.assert_called_once()
+        details = mock_client.notarize.call_args[1]["details"]
+        assert '"did_resolved": false' in details
+
+    def test_trust_policy_includes_reputation(self, mock_client):
+        handler = AiraBedrockHandler(mock_client, agent_id="a1", trust_policy={
+            "verify_counterparty": True,
+            "min_reputation": 80,
+        })
+        mock_client.get_agent_did.return_value = {"did": "did:web:low"}
+        mock_client.get_reputation.return_value = {"score": 45, "tier": "bronze"}
+        handler.notarize_invocation("low-model")
+        details = mock_client.notarize.call_args[1]["details"]
+        assert "reputation_warning" in details
+        assert "Below minimum" in details
+
+    def test_no_trust_policy_no_checks(self, mock_client):
+        handler = AiraBedrockHandler(mock_client, agent_id="a1")
+        handler.notarize_invocation("claude-v2")
+        mock_client.notarize.assert_called_once()
+        details = mock_client.notarize.call_args[1]["details"]
+        assert "trust:" not in details
+        mock_client.get_agent_did.assert_not_called()

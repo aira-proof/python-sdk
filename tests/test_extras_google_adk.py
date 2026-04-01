@@ -60,3 +60,59 @@ class TestAiraPlugin:
         p.before_tool_call("my_tool")
         call_kwargs = mock_client.notarize.call_args[1]
         assert "Arg keys: []" in call_kwargs["details"]
+
+    def test_trust_policy_enriches_details(self, mock_client):
+        p = AiraPlugin(mock_client, agent_id="a1", trust_policy={
+            "verify_counterparty": True,
+            "min_reputation": 60,
+        })
+        mock_client.get_agent_did.return_value = {"did": "did:web:airaproof.com:agents:search"}
+        mock_client.get_reputation.return_value = {"score": 85, "tier": "gold"}
+        p.before_tool_call("search", {"query": "test"})
+        call_kwargs = mock_client.notarize.call_args[1]
+        assert "trust:" in call_kwargs["details"]
+        assert '"did_resolved": true' in call_kwargs["details"]
+        assert '"reputation_score": 85' in call_kwargs["details"]
+
+    def test_trust_policy_blocks_revoked_vc(self, mock_client):
+        p = AiraPlugin(mock_client, agent_id="a1", trust_policy={
+            "verify_counterparty": True,
+            "require_valid_vc": True,
+            "block_revoked_vc": True,
+        })
+        mock_client.get_agent_did.return_value = {"did": "did:web:bad"}
+        mock_client.get_agent_credential.return_value = {"id": "vc_1"}
+        mock_client.verify_credential.return_value = {"valid": False}
+        p.before_tool_call("bad", {"query": "test"})
+        mock_client.notarize.assert_not_called()
+
+    def test_trust_policy_doesnt_block_unregistered(self, mock_client):
+        p = AiraPlugin(mock_client, agent_id="a1", trust_policy={
+            "verify_counterparty": True,
+            "block_unregistered": False,
+        })
+        mock_client.get_agent_did.side_effect = Exception("Not found")
+        p.before_tool_call("unknown", {"query": "test"})
+        mock_client.notarize.assert_called_once()
+        details = mock_client.notarize.call_args[1]["details"]
+        assert '"did_resolved": false' in details
+
+    def test_trust_policy_includes_reputation(self, mock_client):
+        p = AiraPlugin(mock_client, agent_id="a1", trust_policy={
+            "verify_counterparty": True,
+            "min_reputation": 80,
+        })
+        mock_client.get_agent_did.return_value = {"did": "did:web:low"}
+        mock_client.get_reputation.return_value = {"score": 45, "tier": "bronze"}
+        p.before_tool_call("low", {"q": "x"})
+        details = mock_client.notarize.call_args[1]["details"]
+        assert "reputation_warning" in details
+        assert "Below minimum" in details
+
+    def test_no_trust_policy_no_checks(self, mock_client):
+        p = AiraPlugin(mock_client, agent_id="a1")
+        p.before_tool_call("search", {"query": "test"})
+        mock_client.notarize.assert_called_once()
+        details = mock_client.notarize.call_args[1]["details"]
+        assert "trust:" not in details
+        mock_client.get_agent_did.assert_not_called()

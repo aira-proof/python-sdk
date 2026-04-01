@@ -71,6 +71,51 @@ def create_server(api_key: str | None = None, base_url: str | None = None) -> Se
                     "required": ["receipt_id"],
                 },
             ),
+            Tool(
+                name="resolve_did",
+                description="Resolve a DID (Decentralized Identifier) to its DID document",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "did": {"type": "string", "description": "The DID to resolve (e.g. did:web:airaproof.com:agents:my-agent)"},
+                    },
+                    "required": ["did"],
+                },
+            ),
+            Tool(
+                name="verify_credential",
+                description="Verify a Verifiable Credential — checks signature, expiry, and revocation status",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "credential": {"type": "object", "description": "The Verifiable Credential JSON object to verify"},
+                    },
+                    "required": ["credential"],
+                },
+            ),
+            Tool(
+                name="get_reputation",
+                description="Get the current reputation score and tier for an agent",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "agent_slug": {"type": "string", "description": "Agent slug to look up"},
+                    },
+                    "required": ["agent_slug"],
+                },
+            ),
+            Tool(
+                name="request_mutual_sign",
+                description="Initiate a mutual signing request for a notarized action with a counterparty",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "action_id": {"type": "string", "description": "Action UUID to co-sign"},
+                        "counterparty_did": {"type": "string", "description": "DID of the counterparty agent"},
+                    },
+                    "required": ["action_id", "counterparty_did"],
+                },
+            ),
         ]
 
     @server.call_tool()
@@ -88,6 +133,18 @@ def create_server(api_key: str | None = None, base_url: str | None = None) -> Se
                 result = client.get_receipt(arguments["receipt_id"])
                 data = result.__dict__ if hasattr(result, "__dict__") else result
                 return [TextContent(type="text", text=json.dumps(data, default=str))]
+            elif name == "resolve_did":
+                result = client.resolve_did(arguments["did"])
+                return [TextContent(type="text", text=json.dumps(result, default=str))]
+            elif name == "verify_credential":
+                result = client.verify_credential(arguments["credential"])
+                return [TextContent(type="text", text=json.dumps(result, default=str))]
+            elif name == "get_reputation":
+                result = client.get_reputation(arguments["agent_slug"])
+                return [TextContent(type="text", text=json.dumps(result, default=str))]
+            elif name == "request_mutual_sign":
+                result = client.request_mutual_sign(arguments["action_id"], arguments["counterparty_did"])
+                return [TextContent(type="text", text=json.dumps(result, default=str))]
             else:
                 return [TextContent(type="text", text=json.dumps({"error": f"Unknown tool: {name}"}))]
         except Exception as e:

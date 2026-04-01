@@ -1,4 +1,4 @@
-"""LangChain agent with Aira notarization."""
+"""LangChain agent with Aira notarization and trust layer."""
 from aira import Aira
 from aira.extras.langchain import AiraCallbackHandler
 
@@ -6,13 +6,27 @@ from aira.extras.langchain import AiraCallbackHandler
 # Set AIRA_API_KEY and OPENAI_API_KEY environment variables
 
 aira = Aira(api_key="aira_live_xxx")  # Replace with your key
+
+# Trust policy — advisory checks enriching each notarization receipt.
+# Only block_revoked_vc actually prevents notarization; everything else is informational.
+trust_policy = {
+    "verify_counterparty": True,      # resolve counterparty DID
+    "min_reputation": 60,             # warn if reputation score below 60
+    "require_valid_vc": True,         # check Verifiable Credential validity
+    "block_revoked_vc": True,         # block if counterparty VC is revoked
+    "block_unregistered": False,      # don't block agents without Aira DIDs
+}
+
 handler = AiraCallbackHandler(
     client=aira,
     agent_id="langchain-research-agent",
     model_id="gpt-4o",
+    trust_policy=trust_policy,
 )
 
-# Every tool call and chain completion gets a cryptographic receipt
+# Every tool call and chain completion gets a cryptographic receipt,
+# enriched with trust context (DID resolution, VC validity, reputation score).
+
 from langchain_core.tools import tool
 from langchain_core.messages import HumanMessage
 
@@ -37,8 +51,8 @@ def summarize(text: str) -> str:
 # )
 
 # Simulate what the handler does:
-print("Simulating LangChain agent with Aira notarization...")
+print("Simulating LangChain agent with Aira notarization + trust layer...")
 handler.on_tool_end("Found 3 documents", name="search_documents")
 handler.on_tool_end("Summary: Q1 compliance is on track", name="summarize")
 handler.on_chain_end({"output": "Q1 compliance report summary..."})
-print("Done — 3 actions notarized with cryptographic receipts")
+print("Done — 3 actions notarized with cryptographic receipts + trust context")

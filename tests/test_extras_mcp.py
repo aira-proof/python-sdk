@@ -16,6 +16,8 @@ _mock_mcp = types.ModuleType("mcp")
 _mock_mcp_server = types.ModuleType("mcp.server")
 _mock_mcp_types = types.ModuleType("mcp.types")
 _mock_mcp_server_stdio = types.ModuleType("mcp.server.stdio")
+_mock_mcp_server_lowlevel = types.ModuleType("mcp.server.lowlevel")
+_mock_mcp_server_lowlevel_server = types.ModuleType("mcp.server.lowlevel.server")
 
 
 class _MockServer:
@@ -67,6 +69,11 @@ sys.modules["mcp"] = _mock_mcp
 sys.modules["mcp.server"] = _mock_mcp_server
 sys.modules["mcp.types"] = _mock_mcp_types
 sys.modules["mcp.server.stdio"] = _mock_mcp_server_stdio
+sys.modules["mcp.server.lowlevel"] = _mock_mcp_server_lowlevel
+sys.modules["mcp.server.lowlevel.server"] = _mock_mcp_server_lowlevel_server
+
+# Add NotificationOptions mock to the lowlevel server module
+_mock_mcp_server_lowlevel_server.NotificationOptions = type("NotificationOptions", (), {"__init__": lambda self, **kw: None})
 
 
 def _run(coro):
@@ -126,18 +133,21 @@ class TestMCPServer(unittest.TestCase):
             if env_backup is not None:
                 os.environ["AIRA_API_KEY"] = env_backup
 
-    # 4. list_tools returns 3 tools
-    def test_list_tools_returns_three_tools(self):
+    # 4. list_tools returns 7 tools
+    def test_list_tools_returns_seven_tools(self):
         server, _, _ = self._create_server()
         tools = _run(server._list_tools_handler())
-        self.assertEqual(len(tools), 3)
+        self.assertEqual(len(tools), 7)
 
     # 5. tool names are correct
     def test_tool_names_are_correct(self):
         server, _, _ = self._create_server()
         tools = _run(server._list_tools_handler())
         names = {t.name for t in tools}
-        self.assertEqual(names, {"notarize_action", "verify_action", "get_receipt"})
+        self.assertEqual(names, {
+            "notarize_action", "verify_action", "get_receipt",
+            "resolve_did", "verify_credential", "get_reputation", "request_mutual_sign",
+        })
 
     # 6. notarize_action tool calls client.notarize
     def test_notarize_action_calls_client_notarize(self):
@@ -175,6 +185,56 @@ class TestMCPServer(unittest.TestCase):
         mock_client.get_receipt.assert_called_once_with("rec_789")
         data = json.loads(result[0].text)
         self.assertEqual(data["receipt_id"], "rec_789")
+
+    # 8b. resolve_did tool calls client.resolve_did
+    def test_resolve_did_calls_client_resolve_did(self):
+        server, mock_client, _ = self._create_server()
+        mock_client.resolve_did.return_value = {"did": "did:web:airaproof.com:agents:my-agent", "document": {}}
+        result = _run(server._call_tool_handler(
+            "resolve_did",
+            {"did": "did:web:airaproof.com:agents:my-agent"},
+        ))
+        mock_client.resolve_did.assert_called_once_with("did:web:airaproof.com:agents:my-agent")
+        data = json.loads(result[0].text)
+        self.assertEqual(data["did"], "did:web:airaproof.com:agents:my-agent")
+
+    # 8c. verify_credential tool calls client.verify_credential
+    def test_verify_credential_calls_client_verify_credential(self):
+        server, mock_client, _ = self._create_server()
+        mock_client.verify_credential.return_value = {"valid": True, "checks": ["signature", "expiry"]}
+        cred = {"id": "vc_123", "type": "VerifiableCredential"}
+        result = _run(server._call_tool_handler(
+            "verify_credential",
+            {"credential": cred},
+        ))
+        mock_client.verify_credential.assert_called_once_with(cred)
+        data = json.loads(result[0].text)
+        self.assertTrue(data["valid"])
+
+    # 8d. get_reputation tool calls client.get_reputation
+    def test_get_reputation_calls_client_get_reputation(self):
+        server, mock_client, _ = self._create_server()
+        mock_client.get_reputation.return_value = {"score": 92, "tier": "platinum"}
+        result = _run(server._call_tool_handler(
+            "get_reputation",
+            {"agent_slug": "my-agent"},
+        ))
+        mock_client.get_reputation.assert_called_once_with("my-agent")
+        data = json.loads(result[0].text)
+        self.assertEqual(data["score"], 92)
+        self.assertEqual(data["tier"], "platinum")
+
+    # 8e. request_mutual_sign tool calls client.request_mutual_sign
+    def test_request_mutual_sign_calls_client(self):
+        server, mock_client, _ = self._create_server()
+        mock_client.request_mutual_sign.return_value = {"status": "pending", "action_id": "act_123"}
+        result = _run(server._call_tool_handler(
+            "request_mutual_sign",
+            {"action_id": "act_123", "counterparty_did": "did:web:airaproof.com:agents:peer"},
+        ))
+        mock_client.request_mutual_sign.assert_called_once_with("act_123", "did:web:airaproof.com:agents:peer")
+        data = json.loads(result[0].text)
+        self.assertEqual(data["status"], "pending")
 
     # 9. error propagation returns error JSON
     def test_error_returns_error_json(self):
