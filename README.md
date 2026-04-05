@@ -7,26 +7,14 @@
 
 Aira produces cryptographic receipts for every action your AI agent takes. Ed25519 signatures and RFC 3161 timestamps create tamper-proof, court-admissible proof of what happened, who authorized it, and which model made the decision. Built for EU AI Act, SR 11-7, and GDPR compliance.
 
----
-
-## Integration Matrix
-
-Drop Aira into your existing agent framework with one line:
-
-| Framework | Install | Integration Class |
-|---|---|---|
-| **LangChain** | `pip install aira-sdk[langchain]` | `AiraCallbackHandler` |
-| **CrewAI** | `pip install aira-sdk[crewai]` | `AiraCrewHook` |
-| **OpenAI Agents** | `pip install aira-sdk[openai-agents]` | `AiraGuardrail` |
-| **Google ADK** | `pip install aira-sdk[google-adk]` | `AiraPlugin` |
-| **AWS Bedrock** | `pip install aira-sdk[bedrock]` | `AiraBedrockHandler` |
-| **MCP** | `pip install aira-sdk[mcp]` | MCP Server |
-| **CLI** | `pip install aira-sdk[cli]` | `aira` command |
-
-Or install the core SDK alone:
-
 ```bash
 pip install aira-sdk
+```
+
+With extras for framework integrations:
+
+```bash
+pip install aira-sdk[langchain]  # or crewai, openai-agents, google-adk, bedrock, mcp, cli
 ```
 
 ---
@@ -52,246 +40,6 @@ print(receipt.payload_hash)   # sha256:e5f6a7b8...
 print(receipt.signature)       # ed25519:base64url...
 print(receipt.action_id)       # uuid — publicly verifiable
 ```
-
----
-
-## Framework Integrations
-
-### LangChain
-
-`AiraCallbackHandler` notarizes every tool call, chain completion, and LLM invocation with a cryptographic receipt. No changes to your chain logic.
-
-```python
-from aira import Aira
-from aira.extras.langchain import AiraCallbackHandler
-
-aira = Aira(api_key="aira_live_xxx")
-handler = AiraCallbackHandler(client=aira, agent_id="research-agent", model_id="gpt-5.2")
-
-# Every tool call and chain completion gets a signed receipt
-result = chain.invoke({"input": "Analyze Q1 revenue"}, config={"callbacks": [handler]})
-```
-
-### CrewAI
-
-`AiraCrewHook.for_crew()` returns callback dicts that plug directly into CrewAI's `Crew()` constructor. Every task and step completion produces a court-admissible receipt.
-
-```python
-from aira import Aira
-from aira.extras.crewai import AiraCrewHook
-
-aira = Aira(api_key="aira_live_xxx")
-callbacks = AiraCrewHook.for_crew(client=aira, agent_id="research-crew")
-
-crew = Crew(
-    agents=[researcher, writer],
-    tasks=[research_task, write_task],
-    **callbacks,  # task_callback + step_callback — each notarized
-)
-crew.kickoff()
-```
-
-### OpenAI Agents SDK
-
-`AiraGuardrail.wrap_tool()` wraps any tool function to automatically notarize both invocation and result with cryptographic proof.
-
-```python
-from aira import Aira
-from aira.extras.openai_agents import AiraGuardrail
-
-aira = Aira(api_key="aira_live_xxx")
-guardrail = AiraGuardrail(client=aira, agent_id="assistant-agent")
-
-# Wrap tools — every call and result gets a signed receipt
-search = guardrail.wrap_tool(search_tool, tool_name="web_search")
-execute = guardrail.wrap_tool(code_executor, tool_name="code_exec")
-```
-
-### Google ADK
-
-`AiraPlugin` provides `before_tool_call` and `after_tool_call` hooks that create cryptographic receipts at each stage of tool execution.
-
-```python
-from aira import Aira
-from aira.extras.google_adk import AiraPlugin
-
-aira = Aira(api_key="aira_live_xxx")
-plugin = AiraPlugin(client=aira, agent_id="adk-agent", model_id="gemini-2.0-flash")
-
-# Hook into ADK tool lifecycle — receipts at invocation and completion
-plugin.before_tool_call("search_documents", args={"query": "contract terms"})
-result = search_documents(query="contract terms")
-plugin.after_tool_call("search_documents", result=result)
-```
-
-### AWS Bedrock
-
-`AiraBedrockHandler.wrap_invoke_model()` wraps your Bedrock client so every model invocation is notarized with a tamper-proof receipt.
-
-```python
-import boto3
-from aira import Aira
-from aira.extras.bedrock import AiraBedrockHandler
-
-aira = Aira(api_key="aira_live_xxx")
-handler = AiraBedrockHandler(client=aira, agent_id="bedrock-agent")
-
-bedrock = boto3.client("bedrock-runtime")
-bedrock.invoke_model = handler.wrap_invoke_model(bedrock)
-
-# Every invoke_model call now produces a cryptographic receipt
-response = bedrock.invoke_model(modelId="anthropic.claude-v2", body=payload)
-```
-
----
-
-## MCP Server
-
-Expose Aira as an MCP tool server. Any MCP-compatible AI agent can notarize actions and verify receipts without SDK integration.
-
-```bash
-# Set your API key
-export AIRA_API_KEY="aira_live_xxx"
-
-# Run the MCP server (stdio transport)
-aira-mcp
-```
-
-The server exposes three tools: `notarize_action`, `verify_action`, and `get_receipt` -- each producing cryptographically signed results.
-
-Add to your MCP client config:
-
-```json
-{
-  "mcpServers": {
-    "aira": {
-      "command": "aira-mcp",
-      "env": { "AIRA_API_KEY": "aira_live_xxx" }
-    }
-  }
-}
-```
-
----
-
-## CLI
-
-Command-line access to Aira's legal infrastructure. Every command interacts with the same cryptographic backend.
-
-```bash
-pip install aira-sdk[cli]
-```
-
-```bash
-# Show SDK version
-aira version
-
-# Verify a notarized action's cryptographic receipt
-aira verify <action-uuid>
-
-# List notarized actions (with optional agent filter)
-aira actions list --agent lending-agent --limit 20
-
-# List registered agents
-aira agents list
-
-# Register a new agent identity
-aira agents create my-agent --name "My Agent"
-
-# Create a compliance snapshot (EU AI Act, SR 11-7, GDPR Art. 22)
-aira snapshot create eu-ai-act lending-agent
-
-# Create a sealed, tamper-proof evidence package
-aira package create --title "Q1 Audit Trail" --actions "uuid-1,uuid-2,uuid-3"
-```
-
-All commands accept `--api-key` / `-k` and `--base-url` flags, or read from `AIRA_API_KEY`.
-
----
-
-## Decorator (`@aira.trace`)
-
-Auto-notarize any function call. The decorator is non-blocking -- if notarization fails, your function still returns normally. Arguments and return values are never sent to the API; only a metadata hash is recorded.
-
-```python
-@aira.trace(agent_id="lending-agent", action_type="loan_decision")
-def approve_loan(application):
-    decision = model.predict(application)
-    return decision
-
-# Every call produces a cryptographic receipt — tamper-proof proof of execution
-result = approve_loan({"credit_score": 742, "income": 45000})
-```
-
-Set `include_result=True` only if the return value contains no sensitive data:
-
-```python
-@aira.trace(agent_id="pricing-agent", action_type="price_calculated", include_result=True)
-def calculate_price(product_id):
-    return lookup_price(product_id)
-```
-
----
-
-## Session Context Manager
-
-Pre-fill defaults for a block of related actions. Every `notarize()` call within the session inherits the agent identity and model, producing receipts that share a common provenance chain.
-
-```python
-with aira.session(agent_id="onboarding-agent", model_id="claude-sonnet-4-6") as sess:
-    sess.notarize(action_type="identity_verified", details="Verified customer ID #4521")
-    sess.notarize(action_type="account_created", details="Created account for customer #4521")
-    sess.notarize(action_type="welcome_sent", details="Sent welcome email to customer #4521")
-
-    # Session decorator — same signed receipts, less boilerplate
-    @sess.trace(action_type="document_generated")
-    def generate_contract(customer_id):
-        return build_contract(customer_id)
-```
-
----
-
-## Offline Mode
-
-Queue notarizations locally when connectivity is unavailable. Cryptographic receipts are generated server-side when you sync -- nothing is lost.
-
-```python
-aira = Aira(api_key="aira_live_xxx", offline=True)
-
-# These queue locally — no network calls
-aira.notarize(action_type="scan_completed", details="Scanned document batch #77")
-aira.notarize(action_type="classification_done", details="Classified 142 documents")
-
-print(aira._queue.pending_count)  # 2
-
-# Flush to API when back online — receipts are generated for each action
-results = aira.sync()
-```
-
----
-
-## Webhook Verification
-
-Verify that incoming webhooks are authentic Aira events, not forged requests. HMAC-SHA256 signature verification ensures tamper-proof delivery.
-
-```python
-from aira.extras.webhooks import verify_signature, parse_event
-
-# Verify the webhook signature (HMAC-SHA256)
-is_valid = verify_signature(
-    payload=request.body,
-    signature=request.headers["X-Aira-Signature"],
-    secret="whsec_xxx",
-)
-
-if is_valid:
-    event = parse_event(request.body)
-    print(event.event_type)   # "action.notarized"
-    print(event.data)         # Action data with cryptographic receipt
-    print(event.delivery_id)  # Unique delivery ID
-```
-
-Supported event types: `action.notarized`, `action.authorized`, `agent.registered`, `agent.decommissioned`, `evidence.sealed`, `escrow.deposited`, `escrow.released`, `escrow.disputed`, `compliance.snapshot_created`, `case.complete`, `case.requires_human_review`.
 
 ---
 
@@ -475,6 +223,67 @@ handler = AiraCallbackHandler(
 
 ---
 
+## Decorator (`@aira.trace`)
+
+Auto-notarize any function call. The decorator is non-blocking -- if notarization fails, your function still returns normally. Arguments and return values are never sent to the API; only a metadata hash is recorded.
+
+```python
+@aira.trace(agent_id="lending-agent", action_type="loan_decision")
+def approve_loan(application):
+    decision = model.predict(application)
+    return decision
+
+# Every call produces a cryptographic receipt — tamper-proof proof of execution
+result = approve_loan({"credit_score": 742, "income": 45000})
+```
+
+Set `include_result=True` only if the return value contains no sensitive data:
+
+```python
+@aira.trace(agent_id="pricing-agent", action_type="price_calculated", include_result=True)
+def calculate_price(product_id):
+    return lookup_price(product_id)
+```
+
+---
+
+## Session Context Manager
+
+Pre-fill defaults for a block of related actions. Every `notarize()` call within the session inherits the agent identity and model, producing receipts that share a common provenance chain.
+
+```python
+with aira.session(agent_id="onboarding-agent", model_id="claude-sonnet-4-6") as sess:
+    sess.notarize(action_type="identity_verified", details="Verified customer ID #4521")
+    sess.notarize(action_type="account_created", details="Created account for customer #4521")
+    sess.notarize(action_type="welcome_sent", details="Sent welcome email to customer #4521")
+
+    # Session decorator — same signed receipts, less boilerplate
+    @sess.trace(action_type="document_generated")
+    def generate_contract(customer_id):
+        return build_contract(customer_id)
+```
+
+---
+
+## Offline Mode
+
+Queue notarizations locally when connectivity is unavailable. Cryptographic receipts are generated server-side when you sync -- nothing is lost.
+
+```python
+aira = Aira(api_key="aira_live_xxx", offline=True)
+
+# These queue locally — no network calls
+aira.notarize(action_type="scan_completed", details="Scanned document batch #77")
+aira.notarize(action_type="classification_done", details="Classified 142 documents")
+
+print(aira.pending_count)  # 2
+
+# Flush to API when back online — receipts are generated for each action
+results = aira.sync()
+```
+
+---
+
 ## Async Support
 
 `AsyncAira` mirrors every method on `Aira`. Cryptographic receipts are identical -- the only difference is `await`.
@@ -495,6 +304,197 @@ async with AsyncAira(api_key="aira_live_xxx") as aira:
     async def process_order(order):
         return await execute(order)
 ```
+
+---
+
+## Framework Integrations
+
+Drop Aira into your existing agent framework with one line:
+
+| Framework | Install | Integration Class |
+|---|---|---|
+| **LangChain** | `pip install aira-sdk[langchain]` | `AiraCallbackHandler` |
+| **CrewAI** | `pip install aira-sdk[crewai]` | `AiraCrewHook` |
+| **OpenAI Agents** | `pip install aira-sdk[openai-agents]` | `AiraGuardrail` |
+| **Google ADK** | `pip install aira-sdk[google-adk]` | `AiraPlugin` |
+| **AWS Bedrock** | `pip install aira-sdk[bedrock]` | `AiraBedrockHandler` |
+| **MCP** | `pip install aira-sdk[mcp]` | MCP Server |
+| **CLI** | `pip install aira-sdk[cli]` | `aira` command |
+
+### LangChain
+
+`AiraCallbackHandler` notarizes every tool call, chain completion, and LLM invocation with a cryptographic receipt. No changes to your chain logic.
+
+```python
+from aira import Aira
+from aira.extras.langchain import AiraCallbackHandler
+
+aira = Aira(api_key="aira_live_xxx")
+handler = AiraCallbackHandler(client=aira, agent_id="research-agent", model_id="gpt-5.2")
+
+# Every tool call and chain completion gets a signed receipt
+result = chain.invoke({"input": "Analyze Q1 revenue"}, config={"callbacks": [handler]})
+```
+
+### CrewAI
+
+`AiraCrewHook.for_crew()` returns callback dicts that plug directly into CrewAI's `Crew()` constructor. Every task and step completion produces a court-admissible receipt.
+
+```python
+from aira import Aira
+from aira.extras.crewai import AiraCrewHook
+
+aira = Aira(api_key="aira_live_xxx")
+callbacks = AiraCrewHook.for_crew(client=aira, agent_id="research-crew")
+
+crew = Crew(
+    agents=[researcher, writer],
+    tasks=[research_task, write_task],
+    **callbacks,  # task_callback + step_callback — each notarized
+)
+crew.kickoff()
+```
+
+### OpenAI Agents SDK
+
+`AiraGuardrail.wrap_tool()` wraps any tool function to automatically notarize both invocation and result with cryptographic proof.
+
+```python
+from aira import Aira
+from aira.extras.openai_agents import AiraGuardrail
+
+aira = Aira(api_key="aira_live_xxx")
+guardrail = AiraGuardrail(client=aira, agent_id="assistant-agent")
+
+# Wrap tools — every call and result gets a signed receipt
+search = guardrail.wrap_tool(search_tool, tool_name="web_search")
+execute = guardrail.wrap_tool(code_executor, tool_name="code_exec")
+```
+
+### Google ADK
+
+`AiraPlugin` provides `before_tool_call` and `after_tool_call` hooks that create cryptographic receipts at each stage of tool execution.
+
+```python
+from aira import Aira
+from aira.extras.google_adk import AiraPlugin
+
+aira = Aira(api_key="aira_live_xxx")
+plugin = AiraPlugin(client=aira, agent_id="adk-agent", model_id="gemini-2.0-flash")
+
+# Hook into ADK tool lifecycle — receipts at invocation and completion
+plugin.before_tool_call("search_documents", args={"query": "contract terms"})
+result = search_documents(query="contract terms")
+plugin.after_tool_call("search_documents", result=result)
+```
+
+### AWS Bedrock
+
+`AiraBedrockHandler.wrap_invoke_model()` wraps your Bedrock client so every model invocation is notarized with a tamper-proof receipt.
+
+```python
+import boto3
+from aira import Aira
+from aira.extras.bedrock import AiraBedrockHandler
+
+aira = Aira(api_key="aira_live_xxx")
+handler = AiraBedrockHandler(client=aira, agent_id="bedrock-agent")
+
+bedrock = boto3.client("bedrock-runtime")
+bedrock.invoke_model = handler.wrap_invoke_model(bedrock)
+
+# Every invoke_model call now produces a cryptographic receipt
+response = bedrock.invoke_model(modelId="anthropic.claude-v2", body=payload)
+```
+
+---
+
+## MCP Server
+
+Expose Aira as an MCP tool server. Any MCP-compatible AI agent can notarize actions and verify receipts without SDK integration.
+
+```bash
+# Set your API key
+export AIRA_API_KEY="aira_live_xxx"
+
+# Run the MCP server (stdio transport)
+aira-mcp
+```
+
+The server exposes three tools: `notarize_action`, `verify_action`, and `get_receipt` -- each producing cryptographically signed results.
+
+Add to your MCP client config:
+
+```json
+{
+  "mcpServers": {
+    "aira": {
+      "command": "aira-mcp",
+      "env": { "AIRA_API_KEY": "aira_live_xxx" }
+    }
+  }
+}
+```
+
+---
+
+## CLI
+
+Command-line access to Aira's legal infrastructure. Every command interacts with the same cryptographic backend.
+
+```bash
+pip install aira-sdk[cli]
+```
+
+```bash
+# Show SDK version
+aira version
+
+# Verify a notarized action's cryptographic receipt
+aira verify <action-uuid>
+
+# List notarized actions (with optional agent filter)
+aira actions list --agent lending-agent --limit 20
+
+# List registered agents
+aira agents list
+
+# Register a new agent identity
+aira agents create my-agent --name "My Agent"
+
+# Create a compliance snapshot (EU AI Act, SR 11-7, GDPR Art. 22)
+aira snapshot create eu-ai-act lending-agent
+
+# Create a sealed, tamper-proof evidence package
+aira package create --title "Q1 Audit Trail" --actions "uuid-1,uuid-2,uuid-3"
+```
+
+All commands accept `--api-key` / `-k` and `--base-url` flags, or read from `AIRA_API_KEY`.
+
+---
+
+## Webhook Verification
+
+Verify that incoming webhooks are authentic Aira events, not forged requests. HMAC-SHA256 signature verification ensures tamper-proof delivery.
+
+```python
+from aira.extras.webhooks import verify_signature, parse_event
+
+# Verify the webhook signature (HMAC-SHA256)
+is_valid = verify_signature(
+    payload=request.body,
+    signature=request.headers["X-Aira-Signature"],
+    secret="whsec_xxx",
+)
+
+if is_valid:
+    event = parse_event(request.body)
+    print(event.event_type)   # "action.notarized"
+    print(event.data)         # Action data with cryptographic receipt
+    print(event.delivery_id)  # Unique delivery ID
+```
+
+Supported event types: `action.notarized`, `action.authorized`, `agent.registered`, `agent.decommissioned`, `evidence.sealed`, `escrow.deposited`, `escrow.released`, `escrow.disputed`, `compliance.snapshot_created`, `case.complete`, `case.requires_human_review`.
 
 ---
 
