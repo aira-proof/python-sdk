@@ -183,6 +183,17 @@ class EscrowAccount:
 
 @dataclass
 class VerifyResult:
+    """Result of a public action receipt verification.
+
+    The endpoint actually recomputes the SHA-256 hash and verifies the
+    Ed25519 signature against the published public key — ``valid`` is the
+    result of that real cryptographic check, not just an existence check.
+
+    On a successful (or tamper-detected) verification the result includes
+    the full evidence — ``signature``, ``public_key``, ``signed_payload``,
+    ``timestamp_token`` — so an external auditor can re-run the same check
+    with OpenSSL or any Ed25519 library without trusting Aira's verdict.
+    """
     valid: bool
     public_key_id: str
     message: str
@@ -190,6 +201,12 @@ class VerifyResult:
     request_id: str
     receipt_id: str | None = None
     action_id: str | None = None
+    payload_hash: str | None = None
+    signature: str | None = None
+    public_key: str | None = None
+    algorithm: str | None = None
+    timestamp_token: str | None = None
+    signed_payload: dict | None = None
 
 
 @dataclass
