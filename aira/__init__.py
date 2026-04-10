@@ -32,7 +32,7 @@ from aira.types import (
     PaginatedList,
 )
 
-__version__ = "0.4.0"
+__version__ = "1.0.0"
 
 __all__ = [
     "Aira",
