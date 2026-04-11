@@ -277,7 +277,14 @@ class TestMCPServer(unittest.TestCase):
         _mock_mcp_server_stdio.stdio_server = lambda: _FakeStdioCtx()
 
         with patch("aira.extras.mcp.create_server", return_value=mock_server):
-            with patch("asyncio.run") as mock_asyncio_run:
+            # Close the coroutine we receive instead of leaving it hanging —
+            # otherwise Python emits a RuntimeWarning about an un-awaited
+            # coroutine when the test scope tears down.
+            def _close_coro(coro):
+                if hasattr(coro, "close"):
+                    coro.close()
+
+            with patch("asyncio.run", side_effect=_close_coro) as mock_asyncio_run:
                 main()
                 mock_asyncio_run.assert_called_once()
 
