@@ -23,6 +23,7 @@ from aira.types import (
     EscrowAccount,
     EscrowTransaction,
     EvidencePackage,
+    ExplanationVerification,
     PaginatedList,
     VerifyResult,
 )
@@ -95,6 +96,34 @@ def _to_dataclass(cls: type, data: dict) -> Any:
     valid_fields = {f.name for f in cls.__dataclass_fields__.values()}
     filtered = {k: v for k, v in data.items() if k in valid_fields}
     return cls(**filtered)
+
+
+def _explanation_to_wire(explanation: Any) -> dict:
+    """Convert an ActionExplanation (or dict) back to the wire format.
+
+    The verify endpoint re-derives the canonical JSON over the exact
+    keys that were signed, so we have to rename the Pythonic
+    ``envelope`` attribute back to the on-wire ``_envelope`` and drop
+    the per-call ``request_id`` so it matches what was signed.
+    """
+    if isinstance(explanation, ActionExplanation):
+        payload = {
+            "action": explanation.action,
+            "policy_chain": explanation.policy_chain,
+            "approval_chain": explanation.approval_chain,
+            "receipt": explanation.receipt,
+            "regulation": explanation.regulation,
+        }
+        if explanation.envelope is not None:
+            payload["_envelope"] = explanation.envelope
+        return payload
+
+    # Dict path — accept either ``envelope`` or ``_envelope`` but always
+    # emit the signed-canonical key name.
+    payload = {k: v for k, v in explanation.items() if k != "request_id"}
+    if "envelope" in payload and "_envelope" not in payload:
+        payload["_envelope"] = payload.pop("envelope")
+    return payload
 
 
 def _paginated(data: dict) -> PaginatedList:
@@ -897,10 +926,38 @@ class Aira:
         )
 
     def get_action_explanation(self, action_id: str) -> ActionExplanation:
-        """Article 6 right-to-explanation for a single action."""
-        return _to_dataclass(
-            ActionExplanation, self._get(f"/actions/{action_id}/explanation")
+        """Article 6 right-to-explanation for a single action.
+
+        The returned object carries a signed ``envelope`` — verify it
+        later with :meth:`verify_action_explanation` (no auth required
+        on the verify endpoint, so any regulator or auditor can
+        reproduce the check).
+        """
+        data = self._get(f"/actions/{action_id}/explanation")
+        # Wire format uses the underscore-prefixed key ``_envelope`` to
+        # stay aligned with the signed canonical JSON; the dataclass
+        # exposes it as ``envelope`` because Python conventions.
+        if "_envelope" in data:
+            data["envelope"] = data.pop("_envelope")
+        return _to_dataclass(ActionExplanation, data)
+
+    def verify_action_explanation(
+        self, explanation: ActionExplanation | dict
+    ) -> ExplanationVerification:
+        """Public verify — recompute an explanation envelope's signature.
+
+        Accepts either the :class:`ActionExplanation` dataclass as
+        returned by :meth:`get_action_explanation` or a raw dict loaded
+        from disk. Calls the unauthenticated public endpoint, so this
+        works even without the SDK's API key configured.
+        """
+        payload = _explanation_to_wire(explanation)
+        data = _handle_response(
+            self._public_client.post(
+                "/verify/explanation", json={"explanation": payload}
+            )
         )
+        return _to_dataclass(ExplanationVerification, data)
 
     def download_action_explanation_pdf(self, action_id: str) -> bytes:
         """Download the Article 6 explanation as a PDF.
@@ -1540,10 +1597,22 @@ class AsyncAira:
         )
 
     async def get_action_explanation(self, action_id: str) -> ActionExplanation:
-        return _to_dataclass(
-            ActionExplanation,
-            await self._get(f"/actions/{action_id}/explanation"),
+        data = await self._get(f"/actions/{action_id}/explanation")
+        if "_envelope" in data:
+            data["envelope"] = data.pop("_envelope")
+        return _to_dataclass(ActionExplanation, data)
+
+    async def verify_action_explanation(
+        self, explanation: ActionExplanation | dict
+    ) -> ExplanationVerification:
+        """Public verify — recompute an explanation envelope's signature."""
+        payload = _explanation_to_wire(explanation)
+        data = _handle_response(
+            await self._public_client.post(
+                "/verify/explanation", json={"explanation": payload}
+            )
         )
+        return _to_dataclass(ExplanationVerification, data)
 
     async def download_action_explanation_pdf(self, action_id: str) -> bytes:
         """Download the Article 6 explanation PDF (with retries)."""
