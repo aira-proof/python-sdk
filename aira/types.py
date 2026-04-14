@@ -272,7 +272,14 @@ class ComplianceReportVerification:
 
 @dataclass
 class ActionExplanation:
-    """Article 6 right-to-explanation for a single action."""
+    """Article 6 right-to-explanation for a single action.
+
+    The response includes a cryptographic ``envelope`` — an Ed25519
+    signature over the canonical JSON of every field above except the
+    envelope itself and ``request_id``. Verify it offline against the
+    public JWKS, or POST the full explanation (including ``envelope``)
+    to :meth:`Aira.verify_action_explanation`.
+    """
 
     action: dict
     policy_chain: list[dict]
@@ -280,3 +287,19 @@ class ActionExplanation:
     regulation: dict
     request_id: str
     receipt: dict | None = None
+    envelope: dict | None = None
+
+
+@dataclass
+class ExplanationVerification:
+    """Result of :meth:`Aira.verify_action_explanation`.
+
+    ``valid`` is true iff every entry in ``checks`` passed. Each check
+    is either ``True`` or a string explaining the specific failure
+    (missing envelope, unknown key, hash mismatch, bad signature).
+    """
+
+    valid: bool
+    checks: dict
+    request_id: str
+    signing_key_id: str | None = None

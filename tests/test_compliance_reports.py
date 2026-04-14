@@ -13,6 +13,7 @@ from aira import (
     AsyncAira,
     ComplianceReport,
     ComplianceReportVerification,
+    ExplanationVerification,
 )
 from aira.client import AiraError
 
@@ -132,12 +133,102 @@ class TestSyncComplianceReports:
             "approval_chain": [],
             "receipt": {"receipt_id": "rec-1"},
             "regulation": {"framework": "eu_ai_act"},
+            "_envelope": {
+                "alg": "Ed25519",
+                "signing_key_id": "aira-signing-key-v1",
+                "content_hash": "sha256:abc",
+                "signature": "ed25519:sig",
+                "generated_at": "2026-04-12T00:00:00Z",
+            },
             "request_id": "req-4",
         }
         with patch.object(aira._client, "get", return_value=_resp(body)):
             explanation = aira.get_action_explanation("act-1")
         assert isinstance(explanation, ActionExplanation)
         assert explanation.action["id"] == "act-1"
+        # The underscore-prefixed wire key is surfaced as ``envelope``
+        # on the dataclass.
+        assert explanation.envelope is not None
+        assert explanation.envelope["signature"] == "ed25519:sig"
+
+    def test_verify_action_explanation_roundtrips_wire_key(self):
+        aira = _client()
+        # Fake explanation shaped like what get_action_explanation would
+        # return to the caller (with ``envelope`` attribute).
+        exp = ActionExplanation(
+            action={"id": "act-1"},
+            policy_chain=[],
+            approval_chain=[],
+            regulation={"framework": "eu_ai_act"},
+            request_id="req-4",
+            receipt=None,
+            envelope={
+                "alg": "Ed25519",
+                "signing_key_id": "aira-signing-key-v1",
+                "content_hash": "sha256:abc",
+                "signature": "ed25519:sig",
+                "generated_at": "2026-04-12T00:00:00Z",
+            },
+        )
+        verify_body = {
+            "valid": True,
+            "checks": {
+                "key_known": True,
+                "content_hash_matches": True,
+                "signature_valid": True,
+            },
+            "signing_key_id": "aira-signing-key-v1",
+            "request_id": "req-v",
+        }
+        captured: dict = {}
+
+        def _post(url, json=None, **_kw):
+            captured["url"] = url
+            captured["json"] = json
+            return _resp(verify_body)
+
+        with patch.object(aira._public_client, "post", side_effect=_post):
+            result = aira.verify_action_explanation(exp)
+
+        assert isinstance(result, ExplanationVerification)
+        assert result.valid is True
+        assert result.signing_key_id == "aira-signing-key-v1"
+        assert captured["url"] == "/verify/explanation"
+        # The client must post back ``_envelope`` (the signed-canonical
+        # key), not the Pythonic ``envelope`` — otherwise the server's
+        # hash recomputation fails.
+        sent = captured["json"]["explanation"]
+        assert "_envelope" in sent
+        assert "envelope" not in sent
+        assert "request_id" not in sent
+
+    def test_verify_action_explanation_accepts_dict(self):
+        """Raw dict input path — callers can load a saved JSON file
+        directly without constructing the dataclass first."""
+        aira = _client()
+        raw = {
+            "action": {"id": "act-1"},
+            "policy_chain": [],
+            "approval_chain": [],
+            "regulation": {},
+            "receipt": None,
+            "_envelope": {"signature": "ed25519:sig"},
+            "request_id": "should-be-stripped",
+        }
+        captured: dict = {}
+
+        def _post(url, json=None, **_kw):
+            captured["json"] = json
+            return _resp(
+                {"valid": False, "checks": {"envelope_present": "bad"},
+                 "request_id": "r"}
+            )
+
+        with patch.object(aira._public_client, "post", side_effect=_post):
+            aira.verify_action_explanation(raw)
+        sent = captured["json"]["explanation"]
+        assert "_envelope" in sent
+        assert "request_id" not in sent
 
     def test_download_explanation_pdf(self):
         aira = _client()
@@ -200,12 +291,38 @@ class TestAsyncComplianceReports:
             "approval_chain": [],
             "receipt": None,
             "regulation": {"framework": "eu_ai_act"},
+            "_envelope": {"signature": "ed25519:sig"},
             "request_id": "req-5",
         }
         with patch.object(aira._client, "get", return_value=_resp(body)):
             explanation = await aira.get_action_explanation("act-1")
         assert explanation.action["id"] == "act-1"
         assert explanation.receipt is None
+        assert explanation.envelope == {"signature": "ed25519:sig"}
+
+    async def test_verify_action_explanation(self):
+        aira = _async_client()
+        exp = ActionExplanation(
+            action={"id": "act-1"},
+            policy_chain=[],
+            approval_chain=[],
+            regulation={},
+            request_id="req-5",
+            receipt=None,
+            envelope={"signature": "ed25519:sig"},
+        )
+        verify_body = {
+            "valid": True,
+            "checks": {"signature_valid": True},
+            "signing_key_id": "k1",
+            "request_id": "req-v",
+        }
+        with patch.object(
+            aira._public_client, "post", return_value=_resp(verify_body)
+        ):
+            result = await aira.verify_action_explanation(exp)
+        assert isinstance(result, ExplanationVerification)
+        assert result.valid is True
 
 
 # ─── Retry behavior ────────────────────────────────────────────────
