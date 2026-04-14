@@ -57,7 +57,31 @@ class ActionReceipt:
     payload_hash: str | None = None
     signature: str | None = None
     timestamp_token: str | None = None
+    # Output content-scan result attached at notarize time when the
+    # org has an output policy enabled. ``None`` when output filtering
+    # is off (global flag or per-org). Shape (subset):
+    #     {"mode", "decision", "worst_severity", "libraries",
+    #      "scanned_at", "hits": [{name, library, severity, matches, sample}]}
+    output_scan_flags: dict | None = None
     warnings: list[str] | None = None
+
+
+@dataclass
+class OutputPolicy:
+    """Per-org output content-scan policy.
+
+    Returned by :meth:`Aira.get_output_policy` / updated via
+    :meth:`Aira.update_output_policy`. ``mode`` is one of ``"flag"``
+    (record-only), ``"deny"`` (refuse receipt on severe hit), or
+    ``"redact"`` (hash the cleaned outcome).
+    """
+
+    enabled: bool
+    mode: str
+    libraries: list[str]
+    deny_severity_threshold: str
+    redact_severity_threshold: str
+    request_id: str
 
 
 @dataclass
