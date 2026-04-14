@@ -222,3 +222,61 @@ class PaginatedList:
     page: int
     per_page: int
     has_more: bool
+
+
+# ─── Compliance reports (Article 12 / 9 / 6) ─────────────────────────
+
+
+@dataclass
+class ComplianceReport:
+    """A generated regulatory PDF report.
+
+    Returned by :meth:`Aira.create_compliance_report`,
+    :meth:`Aira.get_compliance_report`, and listed by
+    :meth:`Aira.list_compliance_reports`. The PDF bytes are not included
+    in this object — fetch them via :meth:`Aira.download_compliance_report`.
+    """
+
+    id: str
+    framework: str
+    status: str  # "pending" | "generating" | "ready" | "failed"
+    created_at: str
+    request_id: str
+    org_id: str | None = None
+    period_start: str | None = None
+    period_end: str | None = None
+    action_id: str | None = None
+    agent_filter: list[str] | None = None
+    receipt_count: int | None = None
+    pdf_size_bytes: int | None = None
+    content_hash: str | None = None
+    signature: str | None = None
+    signing_key_id: str | None = None
+    timestamp_token: str | None = None
+    timestamp_token_present: bool = False
+    report_metadata: dict | None = None
+    error_message: str | None = None
+    generated_at: str | None = None
+
+
+@dataclass
+class ComplianceReportVerification:
+    """Result of :meth:`Aira.verify_compliance_report`."""
+
+    report_id: str
+    valid: bool
+    checks: dict
+    request_id: str
+    descriptor: dict | None = None
+
+
+@dataclass
+class ActionExplanation:
+    """Article 6 right-to-explanation for a single action."""
+
+    action: dict
+    policy_chain: list[dict]
+    approval_chain: list[dict]
+    regulation: dict
+    request_id: str
+    receipt: dict | None = None

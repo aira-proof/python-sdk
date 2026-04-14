@@ -10,10 +10,13 @@ import httpx
 from aira._offline import OfflineQueue
 from aira.types import (
     ActionDetail,
+    ActionExplanation,
     ActionReceipt,
     AgentDetail,
     AgentVersion,
     Authorization,
+    ComplianceReport,
+    ComplianceReportVerification,
     ComplianceSnapshot,
     CosignResult,
     EscrowAccount,
@@ -751,6 +754,92 @@ class Aira:
                 results.append(resp.json())
         return results
 
+    # ==================== Compliance reports (Phase 1) ====================
+
+    def create_compliance_report(
+        self,
+        framework: str,
+        period_start: str | None = None,
+        period_end: str | None = None,
+        action_id: str | None = None,
+        agent_filter: list[str] | None = None,
+    ) -> ComplianceReport:
+        """Generate a regulatory PDF report (Article 12 / 9 / 6).
+
+        Frameworks:
+        - ``eu_ai_act_art12`` — Annex VII technical file. Requires period.
+        - ``eu_ai_act_art9`` — risk management register. Requires period.
+        - ``eu_ai_act_art6`` — single-action explanation. Requires action_id.
+        """
+        body = _build_body(
+            framework=framework,
+            period_start=period_start,
+            period_end=period_end,
+            action_id=action_id,
+            agent_filter=agent_filter,
+        )
+        return _to_dataclass(ComplianceReport, self._post("/compliance/reports", body))
+
+    def get_compliance_report(self, report_id: str) -> ComplianceReport:
+        """Get the metadata for a compliance report (no PDF bytes)."""
+        return _to_dataclass(
+            ComplianceReport, self._get(f"/compliance/reports/{report_id}")
+        )
+
+    def list_compliance_reports(
+        self,
+        framework: str | None = None,
+        status: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict:
+        """List compliance reports with optional filters.
+
+        Returns the raw dict ``{items, total, limit, offset, request_id}``
+        because pagination here is offset-based, not page-based.
+        """
+        params = _build_body(
+            framework=framework, status=status, limit=limit, offset=offset
+        )
+        return self._get("/compliance/reports", params)
+
+    def download_compliance_report(self, report_id: str) -> bytes:
+        """Download the generated PDF as raw bytes."""
+        if self._queue is not None:
+            raise AiraError(
+                0, "OFFLINE", "Downloads are not available in offline mode"
+            )
+        resp = self._client.get(f"/compliance/reports/{report_id}/download")
+        if resp.status_code != 200:
+            _handle_response(resp)  # raises
+        return resp.content
+
+    def verify_compliance_report(
+        self, report_id: str
+    ) -> ComplianceReportVerification:
+        """Verify a compliance report's signature and content hash."""
+        return _to_dataclass(
+            ComplianceReportVerification,
+            self._get(f"/compliance/reports/{report_id}/verify"),
+        )
+
+    def get_action_explanation(self, action_id: str) -> ActionExplanation:
+        """Article 6 right-to-explanation for a single action."""
+        return _to_dataclass(
+            ActionExplanation, self._get(f"/actions/{action_id}/explanation")
+        )
+
+    def download_action_explanation_pdf(self, action_id: str) -> bytes:
+        """Download the Article 6 explanation as a PDF."""
+        if self._queue is not None:
+            raise AiraError(
+                0, "OFFLINE", "Downloads are not available in offline mode"
+            )
+        resp = self._client.get(f"/actions/{action_id}/explanation/pdf")
+        if resp.status_code != 200:
+            _handle_response(resp)
+        return resp.content
+
     # ==================== Session ====================
 
     def session(self, agent_id: str, **defaults: Any) -> AiraSession:
@@ -1310,6 +1399,79 @@ class AsyncAira:
             else:
                 results.append(resp.json())
         return results
+
+    # ==================== Compliance reports (Phase 1) ====================
+
+    async def create_compliance_report(
+        self,
+        framework: str,
+        period_start: str | None = None,
+        period_end: str | None = None,
+        action_id: str | None = None,
+        agent_filter: list[str] | None = None,
+    ) -> ComplianceReport:
+        """Generate a regulatory PDF report (Article 12 / 9 / 6)."""
+        body = _build_body(
+            framework=framework,
+            period_start=period_start,
+            period_end=period_end,
+            action_id=action_id,
+            agent_filter=agent_filter,
+        )
+        return _to_dataclass(
+            ComplianceReport, await self._post("/compliance/reports", body)
+        )
+
+    async def get_compliance_report(self, report_id: str) -> ComplianceReport:
+        return _to_dataclass(
+            ComplianceReport, await self._get(f"/compliance/reports/{report_id}")
+        )
+
+    async def list_compliance_reports(
+        self,
+        framework: str | None = None,
+        status: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict:
+        params = _build_body(
+            framework=framework, status=status, limit=limit, offset=offset
+        )
+        return await self._get("/compliance/reports", params)
+
+    async def download_compliance_report(self, report_id: str) -> bytes:
+        if self._queue is not None:
+            raise AiraError(
+                0, "OFFLINE", "Downloads are not available in offline mode"
+            )
+        resp = await self._client.get(f"/compliance/reports/{report_id}/download")
+        if resp.status_code != 200:
+            _handle_response(resp)
+        return resp.content
+
+    async def verify_compliance_report(
+        self, report_id: str
+    ) -> ComplianceReportVerification:
+        return _to_dataclass(
+            ComplianceReportVerification,
+            await self._get(f"/compliance/reports/{report_id}/verify"),
+        )
+
+    async def get_action_explanation(self, action_id: str) -> ActionExplanation:
+        return _to_dataclass(
+            ActionExplanation,
+            await self._get(f"/actions/{action_id}/explanation"),
+        )
+
+    async def download_action_explanation_pdf(self, action_id: str) -> bytes:
+        if self._queue is not None:
+            raise AiraError(
+                0, "OFFLINE", "Downloads are not available in offline mode"
+            )
+        resp = await self._client.get(f"/actions/{action_id}/explanation/pdf")
+        if resp.status_code != 200:
+            _handle_response(resp)
+        return resp.content
 
     # ==================== Session ====================
 
