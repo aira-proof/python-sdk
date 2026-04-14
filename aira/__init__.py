@@ -46,11 +46,12 @@ from aira.types import (
     FRAMEWORK_ART6,
     FRAMEWORK_ART9,
     FRAMEWORK_ART12,
+    OutputPolicy,
     PaginatedList,
     VerifyResult,
 )
 
-__version__ = "2.3.0"
+__version__ = "2.4.0"
 
 __all__ = [
     "Aira",
@@ -76,6 +77,7 @@ __all__ = [
     "FRAMEWORK_ART6",
     "FRAMEWORK_ART9",
     "FRAMEWORK_ART12",
+    "OutputPolicy",
     "PaginatedList",
     "VerifyResult",
 ]

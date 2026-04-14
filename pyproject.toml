@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "aira-sdk"
-version = "2.3.0"
+version = "2.4.0"
 description = "The authorization and audit layer for AI agents"
 readme = "README.md"
 license = "MIT"

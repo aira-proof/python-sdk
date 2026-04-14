@@ -24,6 +24,7 @@ from aira.types import (
     EscrowTransaction,
     EvidencePackage,
     ExplanationVerification,
+    OutputPolicy,
     PaginatedList,
     VerifyResult,
 )
@@ -286,6 +287,12 @@ class Aira:
             qid = self._queue.enqueue("PUT", path, body)
             return {"_offline": True, "_queue_id": qid}
         return _handle_response(self._client.put(path, json=body))
+
+    def _patch(self, path: str, body: dict) -> dict:
+        if self._queue is not None:
+            qid = self._queue.enqueue("PATCH", path, body)
+            return {"_offline": True, "_queue_id": qid}
+        return _handle_response(self._client.patch(path, json=body))
 
     def _delete(self, path: str) -> dict:
         if self._queue is not None:
@@ -928,6 +935,47 @@ class Aira:
             self._get(f"/compliance/reports/{report_id}/verify"),
         )
 
+    # ==================== Output content-scan policy ====================
+
+    def get_output_policy(self) -> OutputPolicy:
+        """Return the org's output content-scan policy.
+
+        Scans apply to the ``outcome_details`` passed to :meth:`notarize`.
+        Mode controls behaviour:
+
+        - ``flag`` — hits are recorded on the receipt, nothing blocked
+        - ``deny`` — a hit at or above ``deny_severity_threshold`` makes
+          notarize return 422 with code ``OUTPUT_SCAN_VIOLATION``
+        - ``redact`` — matched spans are replaced with ``[REDACTED]``
+          and the receipt signs over the cleaned bytes
+        """
+        return _to_dataclass(OutputPolicy, self._get("/output-policies"))
+
+    def update_output_policy(
+        self,
+        *,
+        enabled: bool | None = None,
+        mode: str | None = None,
+        libraries: list[str] | None = None,
+        deny_severity_threshold: str | None = None,
+        redact_severity_threshold: str | None = None,
+    ) -> OutputPolicy:
+        """Update the org's output content-scan policy (PATCH semantics).
+
+        Only the fields supplied are changed; omitted fields are left at
+        their current values. Admin role required.
+        """
+        body = _build_body(
+            enabled=enabled,
+            mode=mode,
+            libraries=libraries,
+            deny_severity_threshold=deny_severity_threshold,
+            redact_severity_threshold=redact_severity_threshold,
+        )
+        return _to_dataclass(
+            OutputPolicy, self._patch("/output-policies", body)
+        )
+
     def get_action_explanation(self, action_id: str) -> ActionExplanation:
         """Article 6 right-to-explanation for a single action.
 
@@ -1074,6 +1122,12 @@ class AsyncAira:
             qid = self._queue.enqueue("PUT", path, body)
             return {"_offline": True, "_queue_id": qid}
         return _handle_response(await self._client.put(path, json=body))
+
+    async def _patch(self, path: str, body: dict) -> dict:
+        if self._queue is not None:
+            qid = self._queue.enqueue("PATCH", path, body)
+            return {"_offline": True, "_queue_id": qid}
+        return _handle_response(await self._client.patch(path, json=body))
 
     async def _delete(self, path: str) -> dict:
         if self._queue is not None:
@@ -1602,6 +1656,31 @@ class AsyncAira:
         return _to_dataclass(
             ComplianceReportVerification,
             await self._get(f"/compliance/reports/{report_id}/verify"),
+        )
+
+    async def get_output_policy(self) -> OutputPolicy:
+        """See :meth:`Aira.get_output_policy`."""
+        return _to_dataclass(OutputPolicy, await self._get("/output-policies"))
+
+    async def update_output_policy(
+        self,
+        *,
+        enabled: bool | None = None,
+        mode: str | None = None,
+        libraries: list[str] | None = None,
+        deny_severity_threshold: str | None = None,
+        redact_severity_threshold: str | None = None,
+    ) -> OutputPolicy:
+        """See :meth:`Aira.update_output_policy`."""
+        body = _build_body(
+            enabled=enabled,
+            mode=mode,
+            libraries=libraries,
+            deny_severity_threshold=deny_severity_threshold,
+            redact_severity_threshold=redact_severity_threshold,
+        )
+        return _to_dataclass(
+            OutputPolicy, await self._patch("/output-policies", body)
         )
 
     async def get_action_explanation(self, action_id: str) -> ActionExplanation:
