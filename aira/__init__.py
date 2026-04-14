@@ -42,11 +42,15 @@ from aira.types import (
     EscrowTransaction,
     EvidencePackage,
     ExplanationVerification,
+    FRAMEWORK_ANNEX_IV,
+    FRAMEWORK_ART6,
+    FRAMEWORK_ART9,
+    FRAMEWORK_ART12,
     PaginatedList,
     VerifyResult,
 )
 
-__version__ = "2.2.0"
+__version__ = "2.3.0"
 
 __all__ = [
     "Aira",
@@ -68,6 +72,10 @@ __all__ = [
     "EscrowTransaction",
     "EvidencePackage",
     "ExplanationVerification",
+    "FRAMEWORK_ANNEX_IV",
+    "FRAMEWORK_ART6",
+    "FRAMEWORK_ART9",
+    "FRAMEWORK_ART12",
     "PaginatedList",
     "VerifyResult",
 ]

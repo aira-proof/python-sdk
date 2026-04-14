@@ -14,6 +14,10 @@ from aira import (
     ComplianceReport,
     ComplianceReportVerification,
     ExplanationVerification,
+    FRAMEWORK_ANNEX_IV,
+    FRAMEWORK_ART6,
+    FRAMEWORK_ART9,
+    FRAMEWORK_ART12,
 )
 from aira.client import AiraError
 
@@ -201,6 +205,49 @@ class TestSyncComplianceReports:
         assert "_envelope" in sent
         assert "envelope" not in sent
         assert "request_id" not in sent
+
+    def test_create_annex_iv_report(self):
+        """Annex IV framework must POST through the same endpoint and
+        round-trip the constant into the returned report."""
+        aira = _client()
+        annex_iv_report = {
+            **REPORT_OK,
+            "id": "rep-annex",
+            "framework": FRAMEWORK_ANNEX_IV,
+            "report_metadata": {
+                "annex": "IV",
+                "article_reference": "11",
+                "total_actions": 0,
+                "sections": {"section_1_general": {"provider_name": "Acme"}},
+            },
+        }
+        captured: dict = {}
+
+        def _post(url, json=None, **_kw):
+            captured["url"] = url
+            captured["json"] = json
+            return _resp(annex_iv_report)
+
+        with patch.object(aira._client, "post", side_effect=_post):
+            report = aira.create_compliance_report(
+                framework=FRAMEWORK_ANNEX_IV,
+                period_start="2026-04-01T00:00:00",
+                period_end="2026-04-30T00:00:00",
+            )
+        assert isinstance(report, ComplianceReport)
+        assert report.framework == "eu_ai_act_annex_iv"
+        assert report.report_metadata is not None
+        assert report.report_metadata["annex"] == "IV"
+        # The constant the caller passed is forwarded as the body value.
+        assert captured["json"]["framework"] == "eu_ai_act_annex_iv"
+
+    def test_framework_constants_values(self):
+        """Pin the wire values so a backend rename wouldn't silently
+        succeed in CI."""
+        assert FRAMEWORK_ART12 == "eu_ai_act_art12"
+        assert FRAMEWORK_ART9 == "eu_ai_act_art9"
+        assert FRAMEWORK_ART6 == "eu_ai_act_art6"
+        assert FRAMEWORK_ANNEX_IV == "eu_ai_act_annex_iv"
 
     def test_verify_action_explanation_accepts_dict(self):
         """Raw dict input path — callers can load a saved JSON file

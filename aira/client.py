@@ -860,12 +860,15 @@ class Aira:
         action_id: str | None = None,
         agent_filter: list[str] | None = None,
     ) -> ComplianceReport:
-        """Generate a regulatory PDF report (Article 12 / 9 / 6).
+        """Generate a regulatory PDF report.
 
         Frameworks:
         - ``eu_ai_act_art12`` — Annex VII technical file. Requires period.
         - ``eu_ai_act_art9`` — risk management register. Requires period.
         - ``eu_ai_act_art6`` — single-action explanation. Requires action_id.
+        - ``eu_ai_act_annex_iv`` — full Annex IV technical documentation
+          (§§1..9). Requires period. Typical use: annual file for the
+          high-risk AI system provider obligations in Article 11.
         """
         body = _build_body(
             framework=framework,
@@ -1546,7 +1549,12 @@ class AsyncAira:
         action_id: str | None = None,
         agent_filter: list[str] | None = None,
     ) -> ComplianceReport:
-        """Generate a regulatory PDF report (Article 12 / 9 / 6)."""
+        """Generate a regulatory PDF report.
+
+        See :meth:`Aira.create_compliance_report` for the supported
+        ``framework`` values (``eu_ai_act_art12``, ``_art9``, ``_art6``,
+        ``_annex_iv``).
+        """
         body = _build_body(
             framework=framework,
             period_start=period_start,
