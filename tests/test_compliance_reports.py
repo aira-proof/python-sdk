@@ -206,3 +206,61 @@ class TestAsyncComplianceReports:
             explanation = await aira.get_action_explanation("act-1")
         assert explanation.action["id"] == "act-1"
         assert explanation.receipt is None
+
+
+# ─── Retry behavior ────────────────────────────────────────────────
+
+
+class TestDownloadRetry:
+    def test_download_retries_on_5xx_then_succeeds(self):
+        """Three attempts: two 503s, one 200. The bytes from the third
+        attempt are returned. Retries must NOT raise on intermediate
+        5xx — they should sleep + retry transparently."""
+        from unittest.mock import MagicMock, patch
+
+        aira = _client()
+        responses = [
+            _binary_resp(b"first-fail", status=503),
+            _binary_resp(b"second-fail", status=503),
+            _binary_resp(b"%PDF-1.4 success"),
+        ]
+        # patch sleep to keep the test fast
+        with (
+            patch.object(aira._client, "get", side_effect=responses),
+            patch("aira.client.time.sleep") if False else patch("time.sleep"),
+        ):
+            data = aira.download_compliance_report("rep-1")
+        assert data == b"%PDF-1.4 success"
+
+    def test_download_does_not_retry_on_4xx(self):
+        """A 404 must be raised, not retried — it's a real error."""
+        from unittest.mock import patch
+
+        aira = _client()
+        with patch.object(
+            aira._client,
+            "get",
+            return_value=_resp({"code": "REPORT_NOT_FOUND", "message": "not found"}, status=404),
+        ) as get_mock:
+            with pytest.raises(AiraError):
+                aira.download_compliance_report("rep-bad")
+        # Called exactly once — no retry.
+        assert get_mock.call_count == 1
+
+    def test_download_retries_then_gives_up(self):
+        """After _DOWNLOAD_MAX_ATTEMPTS the last 5xx is propagated."""
+        from unittest.mock import patch
+
+        from aira.client import _DOWNLOAD_MAX_ATTEMPTS
+
+        aira = _client()
+        responses = [
+            _binary_resp(b"x", status=502) for _ in range(_DOWNLOAD_MAX_ATTEMPTS)
+        ]
+        with (
+            patch.object(aira._client, "get", side_effect=responses) as get_mock,
+            patch("time.sleep"),
+        ):
+            with pytest.raises(AiraError):
+                aira.download_compliance_report("rep-1")
+        assert get_mock.call_count == _DOWNLOAD_MAX_ATTEMPTS

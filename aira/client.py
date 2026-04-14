@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import httpx
@@ -31,6 +32,14 @@ logger = logging.getLogger("aira")
 DEFAULT_BASE_URL = "https://api.airaproof.com"
 DEFAULT_TIMEOUT = 30.0
 MAX_DETAILS_LENGTH = 50_000
+
+# Binary download endpoints retry on transient 5xx (server hiccups,
+# brief gateway issues). Three attempts with exponential backoff
+# (0.25s -> 0.5s -> 1.0s) keeps the worst case under 2 seconds while
+# absorbing the most common flakes. 4xx errors are NOT retried — those
+# indicate a real problem the caller needs to see.
+_DOWNLOAD_MAX_ATTEMPTS = 3
+_DOWNLOAD_BACKOFF_BASE = 0.25
 
 
 class AiraError(Exception):
@@ -113,6 +122,64 @@ def _truncate_details(text: str) -> str:
 def _build_body(**kwargs: Any) -> dict:
     """Build request body, filtering out None values."""
     return {k: v for k, v in kwargs.items() if v is not None}
+
+
+def _download_with_retry(
+    fetch: "Callable[[], httpx.Response]",
+) -> httpx.Response:
+    """Run a sync download with retries on 5xx and transport errors.
+
+    Anything in [500, 600) or a network exception triggers a retry up
+    to ``_DOWNLOAD_MAX_ATTEMPTS`` total attempts with exponential
+    backoff. 4xx responses are returned to the caller immediately —
+    they're real errors the caller needs to see (auth failed, not
+    found, bad request, etc.).
+    """
+    import time as _time
+
+    last_exc: Exception | None = None
+    for attempt in range(_DOWNLOAD_MAX_ATTEMPTS):
+        try:
+            resp = fetch()
+        except (httpx.TransportError, httpx.TimeoutException) as exc:
+            last_exc = exc
+            if attempt < _DOWNLOAD_MAX_ATTEMPTS - 1:
+                _time.sleep(_DOWNLOAD_BACKOFF_BASE * (2**attempt))
+                continue
+            raise
+        if resp.status_code >= 500 and attempt < _DOWNLOAD_MAX_ATTEMPTS - 1:
+            _time.sleep(_DOWNLOAD_BACKOFF_BASE * (2**attempt))
+            continue
+        return resp
+    # Unreachable in practice — the loop either returns or raises.
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("download retry loop exited without a response")
+
+
+async def _download_with_retry_async(
+    fetch: "Callable[[], Awaitable[httpx.Response]]",
+) -> httpx.Response:
+    """Async sibling of :func:`_download_with_retry`."""
+    import asyncio as _asyncio
+
+    last_exc: Exception | None = None
+    for attempt in range(_DOWNLOAD_MAX_ATTEMPTS):
+        try:
+            resp = await fetch()
+        except (httpx.TransportError, httpx.TimeoutException) as exc:
+            last_exc = exc
+            if attempt < _DOWNLOAD_MAX_ATTEMPTS - 1:
+                await _asyncio.sleep(_DOWNLOAD_BACKOFF_BASE * (2**attempt))
+                continue
+            raise
+        if resp.status_code >= 500 and attempt < _DOWNLOAD_MAX_ATTEMPTS - 1:
+            await _asyncio.sleep(_DOWNLOAD_BACKOFF_BASE * (2**attempt))
+            continue
+        return resp
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("download retry loop exited without a response")
 
 
 class Aira:
@@ -804,12 +871,18 @@ class Aira:
         return self._get("/compliance/reports", params)
 
     def download_compliance_report(self, report_id: str) -> bytes:
-        """Download the generated PDF as raw bytes."""
+        """Download the generated PDF as raw bytes.
+
+        Retries on transient 5xx and network errors (3 attempts,
+        exponential backoff). 4xx responses surface immediately.
+        """
         if self._queue is not None:
             raise AiraError(
                 0, "OFFLINE", "Downloads are not available in offline mode"
             )
-        resp = self._client.get(f"/compliance/reports/{report_id}/download")
+        resp = _download_with_retry(
+            lambda: self._client.get(f"/compliance/reports/{report_id}/download")
+        )
         if resp.status_code != 200:
             _handle_response(resp)  # raises
         return resp.content
@@ -830,12 +903,18 @@ class Aira:
         )
 
     def download_action_explanation_pdf(self, action_id: str) -> bytes:
-        """Download the Article 6 explanation as a PDF."""
+        """Download the Article 6 explanation as a PDF.
+
+        Retries on transient 5xx and network errors (3 attempts,
+        exponential backoff). 4xx responses surface immediately.
+        """
         if self._queue is not None:
             raise AiraError(
                 0, "OFFLINE", "Downloads are not available in offline mode"
             )
-        resp = self._client.get(f"/actions/{action_id}/explanation/pdf")
+        resp = _download_with_retry(
+            lambda: self._client.get(f"/actions/{action_id}/explanation/pdf")
+        )
         if resp.status_code != 200:
             _handle_response(resp)
         return resp.content
@@ -1440,11 +1519,14 @@ class AsyncAira:
         return await self._get("/compliance/reports", params)
 
     async def download_compliance_report(self, report_id: str) -> bytes:
+        """Download the generated PDF as raw bytes (with retries)."""
         if self._queue is not None:
             raise AiraError(
                 0, "OFFLINE", "Downloads are not available in offline mode"
             )
-        resp = await self._client.get(f"/compliance/reports/{report_id}/download")
+        resp = await _download_with_retry_async(
+            lambda: self._client.get(f"/compliance/reports/{report_id}/download")
+        )
         if resp.status_code != 200:
             _handle_response(resp)
         return resp.content
@@ -1464,11 +1546,14 @@ class AsyncAira:
         )
 
     async def download_action_explanation_pdf(self, action_id: str) -> bytes:
+        """Download the Article 6 explanation PDF (with retries)."""
         if self._queue is not None:
             raise AiraError(
                 0, "OFFLINE", "Downloads are not available in offline mode"
             )
-        resp = await self._client.get(f"/actions/{action_id}/explanation/pdf")
+        resp = await _download_with_retry_async(
+            lambda: self._client.get(f"/actions/{action_id}/explanation/pdf")
+        )
         if resp.status_code != 200:
             _handle_response(resp)
         return resp.content
