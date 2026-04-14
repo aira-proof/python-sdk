@@ -5,6 +5,19 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 
+# ─── Compliance framework constants ─────────────────────────────────
+#
+# String values accepted by :meth:`Aira.create_compliance_report` and
+# returned on :class:`ComplianceReport.framework`. Importing these
+# symbols (rather than hard-coding the strings) keeps callers in
+# lockstep with the backend if a framework ever gets renamed.
+
+FRAMEWORK_ART12 = "eu_ai_act_art12"
+FRAMEWORK_ART9 = "eu_ai_act_art9"
+FRAMEWORK_ART6 = "eu_ai_act_art6"
+FRAMEWORK_ANNEX_IV = "eu_ai_act_annex_iv"
+
+
 @dataclass
 class Authorization:
     """Response from :meth:`Aira.authorize` — step 1 of the two-step flow.
