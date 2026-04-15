@@ -30,8 +30,8 @@ def _make_verify_result(valid: bool = True) -> VerifyResult:
         message="OK" if valid else "INVALID",
         verified_at="2026-01-01T00:00:00Z",
         request_id="req-1",
-        receipt_id="rct-1",
-        action_id="act-1",
+        receipt_uuid="rct-1",
+        action_uuid="act-1",
     )
 
 
@@ -99,7 +99,7 @@ def test_verify_not_found(mock_aira_cls):
 def test_actions_list(mock_aira_cls):
     client = _mock_client()
     client.list_actions.return_value = _make_paginated([
-        {"action_id": "act-001", "action_type": "email_sent", "agent_id": "bot-1", "status": "notarized", "created_at": "2026-01-01T00:00:00Z"},
+        {"action_uuid": "act-001", "action_type": "email_sent", "agent_id": "bot-1", "status": "notarized", "created_at": "2026-01-01T00:00:00Z"},
     ])
     mock_aira_cls.return_value = client
 
@@ -115,7 +115,7 @@ def test_actions_list(mock_aira_cls):
 def test_actions_list_with_agent(mock_aira_cls):
     client = _mock_client()
     client.get_agent_actions.return_value = _make_paginated([
-        {"action_id": "act-002", "action_type": "loan_decision", "agent_id": "lending-bot", "status": "notarized", "created_at": "2026-02-01T00:00:00Z"},
+        {"action_uuid": "act-002", "action_type": "loan_decision", "agent_id": "lending-bot", "status": "notarized", "created_at": "2026-02-01T00:00:00Z"},
     ])
     mock_aira_cls.return_value = client
 
@@ -197,7 +197,7 @@ def test_snapshot_create(mock_aira_cls):
 def test_package_create(mock_aira_cls):
     client = _mock_client()
     client.create_evidence_package.return_value = EvidencePackage(
-        id="pkg-1", title="Audit Q1", action_ids=["a1", "a2"],
+        id="pkg-1", title="Audit Q1", action_uuids=["a1", "a2"],
         package_hash="hash", signature="sig", status="sealed",
         created_at="2026-01-01T00:00:00Z", request_id="req-1",
     )
@@ -207,7 +207,7 @@ def test_package_create(mock_aira_cls):
     assert result.exit_code == 0
     assert "Evidence package created" in result.output
     assert "pkg-1" in result.output
-    client.create_evidence_package.assert_called_once_with(title="Audit Q1", action_ids=["a1", "a2"])
+    client.create_evidence_package.assert_called_once_with(title="Audit Q1", action_uuids=["a1", "a2"])
 
 
 # ---- test_missing_api_key ----

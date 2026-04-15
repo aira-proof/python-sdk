@@ -53,14 +53,14 @@ def version():
 
 @app.command()
 def verify(
-    action_id: str = typer.Argument(..., help="Action UUID to verify"),
+    action_uuid: str = typer.Argument(..., help="Action UUID to verify"),
     api_key: Optional[str] = _api_key_option,
     base_url: Optional[str] = _base_url_option,
 ):
     """Verify a notarized action's cryptographic receipt."""
     client = _get_client(api_key, base_url)
     try:
-        result = client.verify_action(action_id)
+        result = client.verify_action(action_uuid)
         table = Table(title="Verification Result")
         table.add_column("Field", style="bold")
         table.add_column("Value")
@@ -106,14 +106,14 @@ def actions_list(
         for a in items:
             if isinstance(a, dict):
                 table.add_row(
-                    a.get("action_id", "")[:12],
+                    a.get("action_uuid", "")[:12],
                     a.get("action_type", ""),
                     a.get("agent_id", ""),
                     a.get("status", ""),
                     a.get("created_at", "")[:19],
                 )
             else:
-                aid = getattr(a, "action_id", getattr(a, "id", ""))
+                aid = getattr(a, "action_uuid", getattr(a, "id", ""))
                 table.add_row(
                     str(aid)[:12],
                     getattr(a, "action_type", ""),
@@ -217,9 +217,9 @@ def package_create(
 ):
     """Create a sealed evidence package."""
     client = _get_client(api_key, base_url)
-    action_ids = [a.strip() for a in actions.split(",") if a.strip()]
+    action_uuids = [a.strip() for a in actions.split(",") if a.strip()]
     try:
-        result = client.create_evidence_package(title=title, action_ids=action_ids)
+        result = client.create_evidence_package(title=title, action_uuids=action_uuids)
         console.print(f"[green]Evidence package created:[/green] {result.id}")
     except typer.Exit:
         raise

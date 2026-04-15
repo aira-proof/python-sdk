@@ -19,7 +19,7 @@ def handle_webhook():
 
     # Handle specific events
     if event.event_type == "action.notarized":
-        print(f"Action notarized: {event.data.get('action_id')}")
+        print(f"Action notarized: {event.data.get('action_uuid')}")
     elif event.event_type == "case.complete":
         print(f"Case completed: {event.data.get('case_id')}")
 

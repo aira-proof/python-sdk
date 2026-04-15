@@ -8,10 +8,10 @@ import pytest
 from aira.extras.google_adk import AiraPlugin, AiraToolDenied
 
 
-def _auth(status: str = "authorized", action_id: str = "act-1"):
+def _auth(status: str = "authorized", action_uuid: str = "act-1"):
     a = MagicMock()
     a.status = status
-    a.action_id = action_id
+    a.action_uuid = action_uuid
     return a
 
 
@@ -38,7 +38,7 @@ class TestAiraPlugin:
         p.after_tool_call("search", result="5 results")
         mock_client.notarize.assert_called_once()
         nk = mock_client.notarize.call_args[1]
-        assert nk["action_id"] == "act-1"
+        assert nk["action_uuid"] == "act-1"
         assert nk["outcome"] == "completed"
 
     def test_on_tool_error_notarizes_failed(self, mock_client):

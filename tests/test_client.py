@@ -34,7 +34,7 @@ def _paginated_resp(items: list, total: int | None = None) -> httpx.Response:
 
 
 AUTH_OK = {
-    "action_id": "act-1",
+    "action_uuid": "act-1",
     "status": "authorized",
     "created_at": "2026-04-10T00:00:00Z",
     "request_id": "req-1",
@@ -42,7 +42,7 @@ AUTH_OK = {
 }
 
 AUTH_PENDING = {
-    "action_id": "act-1",
+    "action_uuid": "act-1",
     "status": "pending_approval",
     "created_at": "2026-04-10T00:00:00Z",
     "request_id": "req-1",
@@ -50,9 +50,9 @@ AUTH_PENDING = {
 }
 
 RECEIPT_COMPLETED = {
-    "action_id": "act-1",
+    "action_uuid": "act-1",
     "status": "notarized",
-    "receipt_id": "rct-1",
+    "receipt_uuid": "rct-1",
     "payload_hash": "sha256:abc",
     "signature": "ed25519:xyz",
     "timestamp_token": "ts",
@@ -62,9 +62,9 @@ RECEIPT_COMPLETED = {
 }
 
 RECEIPT_FAILED = {
-    "action_id": "act-1",
+    "action_uuid": "act-1",
     "status": "failed",
-    "receipt_id": None,
+    "receipt_uuid": None,
     "payload_hash": None,
     "signature": None,
     "timestamp_token": None,
@@ -74,8 +74,8 @@ RECEIPT_FAILED = {
 }
 
 ACTION = {
-    "action_id": "act-1",
-    "org_id": "org-1",
+    "action_uuid": "act-1",
+    "org_uuid": "org-1",
     "action_type": "email_sent",
     "status": "notarized",
     "legal_hold": False,
@@ -95,7 +95,7 @@ AGENT = {
 }
 VERSION = {"id": "v-1", "version": "1.0.0", "status": "active", "created_at": "2026-04-10T00:00:00Z"}
 EVIDENCE = {
-    "id": "pkg-1", "title": "Test", "action_ids": ["act-1"], "package_hash": "sha256:p",
+    "id": "pkg-1", "title": "Test", "action_uuids": ["act-1"], "package_hash": "sha256:p",
     "signature": "ed25519:p", "status": "sealed", "created_at": "2026-04-10T00:00:00Z", "request_id": "req-1",
 }
 SNAPSHOT = {
@@ -132,7 +132,7 @@ class TestAuthorize:
         with patch.object(self.c._client, "post", return_value=_resp(AUTH_OK, 201)):
             a = self.c.authorize(action_type="wire_transfer", details="Send EUR 75K")
         assert isinstance(a, Authorization)
-        assert a.action_id == "act-1"
+        assert a.action_uuid == "act-1"
         assert a.status == "authorized"
 
     def test_authorize_posts_to_actions_endpoint(self):
@@ -150,7 +150,7 @@ class TestAuthorize:
                 instruction_hash="sha256:h",
                 model_id="claude-sonnet-4-6",
                 model_version="20250514",
-                parent_action_id="parent-1",
+                parent_action_uuid="parent-1",
                 endpoint_url="https://api.stripe.com/v1/charges",
                 store_details=True,
                 idempotency_key="idem-1",
@@ -162,7 +162,7 @@ class TestAuthorize:
             assert b["instruction_hash"] == "sha256:h"
             assert b["model_id"] == "claude-sonnet-4-6"
             assert b["model_version"] == "20250514"
-            assert b["parent_action_id"] == "parent-1"
+            assert b["parent_action_uuid"] == "parent-1"
             assert b["endpoint_url"] == "https://api.stripe.com/v1/charges"
             assert b["store_details"] is True
             assert b["idempotency_key"] == "idem-1"
@@ -176,20 +176,20 @@ class TestAuthorize:
                 approvers=["mgr@example.com"],
             )
         assert a.status == "pending_approval"
-        assert a.action_id == "act-1"
+        assert a.action_uuid == "act-1"
 
     def test_authorize_policy_denied_raises_with_details(self):
         err_body = {
             "code": "POLICY_DENIED",
             "message": "Action denied by policy 'Block wire transfers'",
-            "details": {"action_id": "act-1", "policy_id": "pol-1"},
+            "details": {"action_uuid": "act-1", "policy_uuid": "pol-1"},
         }
         with patch.object(self.c._client, "post", return_value=_resp(err_body, 403)):
             with pytest.raises(AiraError) as ei:
                 self.c.authorize(action_type="wire_transfer", details="Send EUR 75K")
         assert ei.value.code == "POLICY_DENIED"
         assert ei.value.status_code == 403
-        assert ei.value.details == {"action_id": "act-1", "policy_id": "pol-1"}
+        assert ei.value.details == {"action_uuid": "act-1", "policy_uuid": "pol-1"}
         assert ei.value.message.startswith("Action denied by policy")
 
     def test_authorize_endpoint_not_whitelisted_raises(self):
@@ -251,19 +251,19 @@ class TestNotarize:
     def test_notarize_completed_mints_receipt(self):
         with patch.object(self.c._client, "post", return_value=_resp(RECEIPT_COMPLETED, 200)):
             r = self.c.notarize(
-                action_id="act-1",
+                action_uuid="act-1",
                 outcome="completed",
                 outcome_details="Sent, ref TX12345",
             )
         assert isinstance(r, ActionReceipt)
         assert r.status == "notarized"
-        assert r.receipt_id == "rct-1"
+        assert r.receipt_uuid == "rct-1"
         assert r.payload_hash == "sha256:abc"
         assert r.signature == "ed25519:xyz"
 
     def test_notarize_posts_to_action_notarize_endpoint(self):
         with patch.object(self.c._client, "post", return_value=_resp(RECEIPT_COMPLETED, 200)) as m:
-            self.c.notarize(action_id="act-1")
+            self.c.notarize(action_uuid="act-1")
             assert m.call_args[0][0] == "/actions/act-1/notarize"
             b = m.call_args[1]["json"]
             assert b["outcome"] == "completed"
@@ -271,12 +271,12 @@ class TestNotarize:
     def test_notarize_failed_no_receipt_minted(self):
         with patch.object(self.c._client, "post", return_value=_resp(RECEIPT_FAILED, 200)):
             r = self.c.notarize(
-                action_id="act-1",
+                action_uuid="act-1",
                 outcome="failed",
                 outcome_details="Rejected by upstream API",
             )
         assert r.status == "failed"
-        assert r.receipt_id is None
+        assert r.receipt_uuid is None
         assert r.signature is None
 
     def test_notarize_invalid_state_raises(self):
@@ -286,12 +286,12 @@ class TestNotarize:
         }
         with patch.object(self.c._client, "post", return_value=_resp(err_body, 409)):
             with pytest.raises(AiraError) as ei:
-                self.c.notarize(action_id="act-1")
+                self.c.notarize(action_uuid="act-1")
         assert ei.value.code == "INVALID_STATE"
 
     def test_notarize_omits_outcome_details_when_none(self):
         with patch.object(self.c._client, "post", return_value=_resp(RECEIPT_COMPLETED, 200)) as m:
-            self.c.notarize(action_id="act-1", outcome="completed")
+            self.c.notarize(action_uuid="act-1", outcome="completed")
             b = m.call_args[1]["json"]
             assert "outcome_details" not in b
 
@@ -314,13 +314,13 @@ class TestFullFlow:
         # Notarize
         with patch.object(self.c._client, "post", return_value=_resp(RECEIPT_COMPLETED, 200)) as m:
             receipt = self.c.notarize(
-                action_id=auth.action_id,
+                action_uuid=auth.action_uuid,
                 outcome="completed",
                 outcome_details="ref TX12345",
             )
-            assert m.call_args[0][0] == f"/actions/{auth.action_id}/notarize"
+            assert m.call_args[0][0] == f"/actions/{auth.action_uuid}/notarize"
 
-        assert receipt.action_id == auth.action_id
+        assert receipt.action_uuid == auth.action_uuid
         assert receipt.status == "notarized"
         assert receipt.signature is not None
 
@@ -355,17 +355,17 @@ class TestOtherActions:
 
     def test_cosign_action(self):
         cosign_body = {
-            "action_id": "act-1",
+            "action_uuid": "act-1",
             "cosigner_email": "alice@example.com",
             "cosigned_at": "2026-04-10T01:00:00Z",
-            "cosignature_id": "cos-1",
+            "cosignature_uuid": "cos-1",
         }
         with patch.object(self.c._client, "post", return_value=_resp(cosign_body)) as m:
             r = self.c.cosign_action("act-1")
             assert m.call_args[0][0] == "/actions/act-1/cosign"
         assert isinstance(r, CosignResult)
         assert r.cosigner_email == "alice@example.com"
-        assert r.cosignature_id == "cos-1"
+        assert r.cosignature_uuid == "cos-1"
 
     def test_legal_hold(self):
         with patch.object(self.c._client, "post", return_value=_resp({"legal_hold": True})):
@@ -588,14 +588,14 @@ class TestAsync:
         async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
             with patch.object(c._client, "post", return_value=_resp(AUTH_OK, 201)):
                 a = await c.authorize(action_type="x", details="y")
-                assert a.action_id == "act-1"
+                assert a.action_uuid == "act-1"
                 assert a.status == "authorized"
 
     @pytest.mark.asyncio
     async def test_notarize(self):
         async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
             with patch.object(c._client, "post", return_value=_resp(RECEIPT_COMPLETED, 200)) as m:
-                r = await c.notarize(action_id="act-1", outcome="completed")
+                r = await c.notarize(action_uuid="act-1", outcome="completed")
                 assert m.call_args[0][0] == "/actions/act-1/notarize"
                 assert r.status == "notarized"
 
@@ -603,19 +603,19 @@ class TestAsync:
     async def test_notarize_failed(self):
         async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
             with patch.object(c._client, "post", return_value=_resp(RECEIPT_FAILED, 200)):
-                r = await c.notarize(action_id="act-1", outcome="failed", outcome_details="oops")
+                r = await c.notarize(action_uuid="act-1", outcome="failed", outcome_details="oops")
                 assert r.status == "failed"
-                assert r.receipt_id is None
+                assert r.receipt_uuid is None
 
     @pytest.mark.asyncio
     async def test_authorize_policy_denied(self):
         async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
-            err = {"code": "POLICY_DENIED", "message": "denied", "details": {"action_id": "act-1", "policy_id": "pol-1"}}
+            err = {"code": "POLICY_DENIED", "message": "denied", "details": {"action_uuid": "act-1", "policy_uuid": "pol-1"}}
             with patch.object(c._client, "post", return_value=_resp(err, 403)):
                 with pytest.raises(AiraError) as ei:
                     await c.authorize(action_type="x", details="y")
                 assert ei.value.code == "POLICY_DENIED"
-                assert ei.value.details["policy_id"] == "pol-1"
+                assert ei.value.details["policy_uuid"] == "pol-1"
 
     @pytest.mark.asyncio
     async def test_full_flow_end_to_end(self):
@@ -623,8 +623,8 @@ class TestAsync:
             with patch.object(c._client, "post", return_value=_resp(AUTH_OK, 201)):
                 auth = await c.authorize(action_type="x", details="y")
             with patch.object(c._client, "post", return_value=_resp(RECEIPT_COMPLETED, 200)):
-                receipt = await c.notarize(action_id=auth.action_id, outcome="completed")
-            assert receipt.action_id == auth.action_id
+                receipt = await c.notarize(action_uuid=auth.action_uuid, outcome="completed")
+            assert receipt.action_uuid == auth.action_uuid
             assert receipt.status == "notarized"
 
     @pytest.mark.asyncio
@@ -643,10 +643,10 @@ class TestAsync:
     async def test_cosign_action(self):
         async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
             cosign_body = {
-                "action_id": "act-1",
+                "action_uuid": "act-1",
                 "cosigner_email": "alice@example.com",
                 "cosigned_at": "2026-04-10T01:00:00Z",
-                "cosignature_id": "cos-1",
+                "cosignature_uuid": "cos-1",
             }
             with patch.object(c._client, "post", return_value=_resp(cosign_body)):
                 r = await c.cosign_action("act-1")
@@ -795,8 +795,8 @@ class TestAsync:
     @pytest.mark.asyncio
     async def test_get_receipt(self):
         async with AsyncAira(api_key="aira_live_test", base_url="http://test") as c:
-            with patch.object(c._client, "get", return_value=_resp({"receipt_id": "r1"})):
-                assert (await c.get_receipt("r1"))["receipt_id"] == "r1"
+            with patch.object(c._client, "get", return_value=_resp({"receipt_uuid": "r1"})):
+                assert (await c.get_receipt("r1"))["receipt_uuid"] == "r1"
 
     @pytest.mark.asyncio
     async def test_export_receipt(self):
@@ -960,14 +960,14 @@ class TestSyncMutualSign:
         self.c.close()
 
     def test_request_mutual_sign(self):
-        with patch.object(self.c._client, "post", return_value=_resp({"status": "pending", "action_id": "act-1"})) as m:
+        with patch.object(self.c._client, "post", return_value=_resp({"status": "pending", "action_uuid": "act-1"})) as m:
             result = self.c.request_mutual_sign("act-1", "did:web:example.com:agents:other")
             assert result["status"] == "pending"
             body = m.call_args[1]["json"]
             assert body["counterparty_did"] == "did:web:example.com:agents:other"
 
     def test_get_pending_mutual_sign(self):
-        with patch.object(self.c._client, "get", return_value=_resp({"payload": {"action_id": "act-1"}, "payload_hash": "sha256:abc"})):
+        with patch.object(self.c._client, "get", return_value=_resp({"payload": {"action_uuid": "act-1"}, "payload_hash": "sha256:abc"})):
             result = self.c.get_pending_mutual_sign("act-1")
             assert result["payload_hash"] == "sha256:abc"
 
@@ -981,7 +981,7 @@ class TestSyncMutualSign:
             assert body["signed_payload_hash"] == "sha256:abc"
 
     def test_get_mutual_sign_receipt(self):
-        with patch.object(self.c._client, "get", return_value=_resp({"receipt_id": "rct-1", "signatures": ["sig-a", "sig-b"]})):
+        with patch.object(self.c._client, "get", return_value=_resp({"receipt_uuid": "rct-1", "signatures": ["sig-a", "sig-b"]})):
             result = self.c.get_mutual_sign_receipt("act-1")
             assert len(result["signatures"]) == 2
 
@@ -1023,7 +1023,7 @@ class TestSyncReputation:
             assert result["recorded"] is True
             body = m.call_args[1]["json"]
             assert body["counterparty_did"] == "did:web:example.com:agents:other"
-            assert body["action_id"] == "act-1"
+            assert body["action_uuid"] == "act-1"
             assert body["attestation"] == "positive"
             assert body["signature"] == "zsig456"
 

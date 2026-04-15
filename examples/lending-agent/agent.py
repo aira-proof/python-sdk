@@ -164,7 +164,7 @@ def main():
         instruction_hash=instruction_hash,
         idempotency_key=f"loan-{APPLICATION['applicant'].replace(' ', '-').lower()}",
     )
-    print(f"   - authorize() -> status={auth.status} action_id={auth.action_id[:16]}...")
+    print(f"   - authorize() -> status={auth.status} action_uuid={auth.action_uuid[:16]}...")
 
     if auth.status == "pending_approval":
         print("   - Held for human review. Exiting — no decision made.")
@@ -179,13 +179,13 @@ def main():
 
     # Step 3: report the outcome — this mints the cryptographic receipt.
     receipt = aira.notarize(
-        action_id=auth.action_id,
+        action_uuid=auth.action_uuid,
         outcome="completed",
         outcome_details=json.dumps({"decision": decision, "confidence": confidence}),
     )
     print(f"   - notarize() -> status={receipt.status}")
     print(f"   - Signature: {receipt.signature[:30] if receipt.signature else 'none'}...")
-    action_ids = [receipt.action_id]
+    action_uuids = [receipt.action_uuid]
 
     # Chain of custody — email as child action (also gated).
     email_auth = aira.authorize(
@@ -193,22 +193,22 @@ def main():
         details=json.dumps({"to": APPLICATION["email"], "subject": f"Loan {decision}"}),
         agent_id=AGENT_SLUG,
         model_id=MODEL_ID,
-        parent_action_id=receipt.action_id,
+        parent_action_uuid=receipt.action_uuid,
     )
     if email_auth.status == "authorized":
         ref = send_loan_email(APPLICATION["applicant"], decision)
         aira.notarize(
-            action_id=email_auth.action_id,
+            action_uuid=email_auth.action_uuid,
             outcome="completed",
             outcome_details=f"sent via SES, ref={ref}",
         )
-        print(f"   - Chained email: {email_auth.action_id[:16]}... (ref={ref})")
-        action_ids.append(email_auth.action_id)
+        print(f"   - Chained email: {email_auth.action_uuid[:16]}... (ref={ref})")
+        action_uuids.append(email_auth.action_uuid)
 
     # Listing / chain / filter
-    action = aira.get_action(receipt.action_id)
+    action = aira.get_action(receipt.action_uuid)
     print(f"   - Action type: {action.action_type}")
-    chain = aira.get_action_chain(receipt.action_id)
+    chain = aira.get_action_chain(receipt.action_uuid)
     print(f"   - Chain: {len(chain)} action(s)")
     actions_list = aira.list_actions(page=1, action_type="loan_decision")
     print(f"   - Loan decisions: {actions_list.total}")
@@ -244,7 +244,7 @@ def main():
     print("-" * 40)
     package = aira.create_evidence_package(
         title=f"Loan Decision - {APPLICATION['applicant']}",
-        action_ids=action_ids,
+        action_uuids=action_uuids,
         description=f"Audit trail for EUR {APPLICATION['loan_amount_eur']:,} loan. Decision: {decision}.",
     )
     print(f"   - Sealed: \"{package.title}\"")
@@ -337,7 +337,7 @@ def main():
 
     print("8. Public Verification")
     print("-" * 40)
-    result = aira.verify_action(receipt.action_id)
+    result = aira.verify_action(receipt.action_uuid)
     print(f"   - Valid: {result.valid}")
     print(f"   - Key: {result.public_key_id}")
     print(f"   - {result.message[:60]}...")
@@ -353,7 +353,7 @@ def main():
         aira.verify_action("00000000-0000-0000-0000-000000000000")
     except AiraError as e:
         print(f"   - Caught: [{e.code}] {e.message}")
-    # POLICY_DENIED example — the details dict carries action_id + policy_id
+    # POLICY_DENIED example — the details dict carries action_uuid + policy_uuid
     try:
         aira.authorize(
             action_type="wire_transfer",
@@ -363,8 +363,8 @@ def main():
     except AiraError as e:
         if e.code == "POLICY_DENIED":
             print(
-                f"   - Caught POLICY_DENIED: action_id={e.details.get('action_id')} "
-                f"policy_id={e.details.get('policy_id')}"
+                f"   - Caught POLICY_DENIED: action_uuid={e.details.get('action_uuid')} "
+                f"policy_uuid={e.details.get('policy_uuid')}"
             )
         else:
             print(f"   - Caught: [{e.code}] {e.message}")

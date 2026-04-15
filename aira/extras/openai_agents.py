@@ -43,7 +43,7 @@ class AiraGuardrail:
         self.model_id = model_id
 
     def _authorize(self, tool_name: str, details: str) -> str:
-        """Authorize a tool call. Returns action_id or raises AiraToolDenied."""
+        """Authorize a tool call. Returns action_uuid or raises AiraToolDenied."""
         try:
             auth = self.client.authorize(
                 action_type="tool_call",
@@ -60,19 +60,19 @@ class AiraGuardrail:
             raise AiraToolDenied(
                 tool_name,
                 "PENDING_APPROVAL",
-                f"Tool call held for approval (action {auth.action_id})",
+                f"Tool call held for approval (action {auth.action_uuid})",
             )
-        return auth.action_id
+        return auth.action_uuid
 
     def _notarize(
         self,
-        action_id: str,
+        action_uuid: str,
         outcome: str,
         outcome_details: str,
     ) -> None:
         try:
             self.client.notarize(
-                action_id=action_id,
+                action_uuid=action_uuid,
                 outcome=outcome,
                 outcome_details=outcome_details[:5000],
             )
@@ -87,18 +87,18 @@ class AiraGuardrail:
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             arg_keys = sorted(kwargs.keys())
             details = f"Tool '{name}' called. Arg keys: {arg_keys}"
-            action_id = self._authorize(name, details)
+            action_uuid = self._authorize(name, details)
             try:
                 result = tool_fn(*args, **kwargs)
             except Exception as e:
                 self._notarize(
-                    action_id,
+                    action_uuid,
                     "failed",
                     f"Tool '{name}' errored: {type(e).__name__}: {str(e)[:200]}",
                 )
                 raise
             self._notarize(
-                action_id,
+                action_uuid,
                 "completed",
                 f"Tool '{name}' completed. Result length: {len(str(result))} chars",
             )

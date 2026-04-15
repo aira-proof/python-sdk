@@ -49,14 +49,14 @@ class AiraCrewHook:
             )
             if auth.status == "authorized":
                 self.client.notarize(
-                    action_id=auth.action_id,
+                    action_uuid=auth.action_uuid,
                     outcome="completed",
                     outcome_details=details[:5000],
                 )
             else:
                 logger.info(
                     "Aira audit skipped notarize: action %s is %s",
-                    auth.action_id,
+                    auth.action_uuid,
                     auth.status,
                 )
         except Exception as e:

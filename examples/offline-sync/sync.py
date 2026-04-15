@@ -5,7 +5,7 @@ Offline mode queues POST/PUT/DELETE requests to local disk. GET requests
 call sync(), the queued authorize calls are flushed to the API and you get
 back the real responses in FIFO order.
 
-Note: in offline mode authorize() does NOT return a real action_id
+Note: in offline mode authorize() does NOT return a real action_uuid
 (because it's queued, not yet sent). You cannot call notarize() for an
 action until after sync() has flushed the authorize to the backend and
 given you the real ID.
@@ -25,4 +25,4 @@ print(f"Queued: {aira.pending_count} actions")
 results = aira.sync()
 print(f"Synced: {len(results)} actions")
 for r in results:
-    print(f"  action_id: {r.get('action_id', '<error>')}")
+    print(f"  action_uuid: {r.get('action_uuid', '<error>')}")

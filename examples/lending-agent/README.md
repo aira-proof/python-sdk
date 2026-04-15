@@ -7,7 +7,7 @@ A real AI lending agent that evaluates loan applications using Claude and demons
 | # | Feature | SDK Methods Used |
 |---|---------|-----------------|
 | 1 | **Agent Registry** | `register_agent`, `publish_version`, `update_agent`, `list_agents`, `get_agent`, `list_versions` |
-| 2 | **Two-step authorize/notarize** | `authorize` (gate with idempotency), `notarize` (report outcome), chain of custody (`parent_action_id`), `get_action`, `get_action_chain`, `list_actions` |
+| 2 | **Two-step authorize/notarize** | `authorize` (gate with idempotency), `notarize` (report outcome), chain of custody (`parent_action_uuid`), `get_action`, `get_action_chain`, `list_actions` |
 | 3 | **Multi-Model Consensus** | `run_case`, `list_cases` |
 | 4 | **Evidence** | `create_evidence_package`, `list_evidence_packages`, `get_evidence_package`, `time_travel` |
 | 5 | **Estate & Compliance** | `set_agent_will`, `get_agent_will`, `create_compliance_snapshot`, `list_compliance_snapshots` |
@@ -43,7 +43,7 @@ python agent.py
 
 2. Loan Decision (gated by Aira)
 ----------------------------------------
-   - authorize() -> status=authorized action_id=act_01J8X...
+   - authorize() -> status=authorized action_uuid=act_01J8X...
    - AI decision: APPROVED (confidence: 0.91)
    - notarize() -> status=notarized
    - Signature: ed25519:Mzx0xEB...

@@ -17,12 +17,12 @@ Two-step flow:
         # Step 2: execute, then report outcome
         result = send_wire(75000, to="vendor-x")
         aira.notarize(
-            action_id=auth.action_id,
+            action_uuid=auth.action_uuid,
             outcome="completed",
             outcome_details=f"Sent. ref={result.id}",
         )
     elif auth.status == "pending_approval":
-        queue.enqueue(auth.action_id)  # wait for approver
+        queue.enqueue(auth.action_uuid)  # wait for approver
     # POLICY_DENIED is raised as AiraError
 """
 
@@ -51,7 +51,7 @@ from aira.types import (
     VerifyResult,
 )
 
-__version__ = "2.4.0"
+__version__ = "3.0.0"
 
 __all__ = [
     "Aira",

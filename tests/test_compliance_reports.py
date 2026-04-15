@@ -42,10 +42,10 @@ REPORT_OK = {
     "id": "rep-1",
     "framework": "eu_ai_act_art12",
     "status": "ready",
-    "org_id": "org-1",
+    "org_uuid": "org-1",
     "period_start": "2026-04-01T00:00:00",
     "period_end": "2026-04-30T00:00:00",
-    "action_id": None,
+    "action_uuid": None,
     "agent_filter": None,
     "receipt_count": 2,
     "pdf_size_bytes": 1234,
@@ -118,7 +118,7 @@ class TestSyncComplianceReports:
     def test_verify_report(self):
         aira = _client()
         body = {
-            "report_id": "rep-1",
+            "report_uuid": "rep-1",
             "valid": True,
             "checks": {"content_hash_matches": True, "signature_valid": True},
             "descriptor": {"framework": "eu_ai_act_art12"},
@@ -135,7 +135,7 @@ class TestSyncComplianceReports:
             "action": {"id": "act-1"},
             "policy_chain": [],
             "approval_chain": [],
-            "receipt": {"receipt_id": "rec-1"},
+            "receipt": {"receipt_uuid": "rec-1"},
             "regulation": {"framework": "eu_ai_act"},
             "_envelope": {
                 "alg": "Ed25519",

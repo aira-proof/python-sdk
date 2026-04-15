@@ -49,9 +49,9 @@ def summarize(text: str) -> str:
 
 # Simulate the handler lifecycle:
 print("Simulating LangChain agent with Aira authorization gating...")
-handler.on_tool_start({"name": "search_documents"}, "compliance report", run_id="r1")
-handler.on_tool_end("Found 3 documents", run_id="r1", name="search_documents")
-handler.on_tool_start({"name": "summarize"}, "Q1 compliance is on track", run_id="r2")
-handler.on_tool_end("Summary: Q1 compliance on track", run_id="r2", name="summarize")
+handler.on_tool_start({"name": "search_documents"}, "compliance report", run_uuid="r1")
+handler.on_tool_end("Found 3 documents", run_uuid="r1", name="search_documents")
+handler.on_tool_start({"name": "summarize"}, "Q1 compliance is on track", run_uuid="r2")
+handler.on_tool_end("Summary: Q1 compliance on track", run_uuid="r2", name="summarize")
 handler.on_chain_end({"output": "Q1 compliance report summary..."})
 print("Done — 2 tool calls gated + notarized, 1 chain completion audited")

@@ -44,7 +44,7 @@ class AiraPlugin:
         self.client = client
         self.agent_id = agent_id
         self.model_id = model_id
-        # Map tool_name → most recent action_id so after_tool_call can notarize.
+        # Map tool_name → most recent action_uuid so after_tool_call can notarize.
         self._inflight: dict[str, str] = {}
         self._lock = threading.Lock()
 
@@ -72,21 +72,21 @@ class AiraPlugin:
             raise AiraToolDenied(
                 tool_name,
                 "PENDING_APPROVAL",
-                f"Tool call held for approval (action {auth.action_id})",
+                f"Tool call held for approval (action {auth.action_uuid})",
             )
 
         with self._lock:
-            self._inflight[tool_name] = auth.action_id
+            self._inflight[tool_name] = auth.action_uuid
 
     def after_tool_call(self, tool_name: str, result: Any = None) -> None:
         """Notarize a successful tool call."""
         with self._lock:
-            action_id = self._inflight.pop(tool_name, None)
-        if not action_id:
+            action_uuid = self._inflight.pop(tool_name, None)
+        if not action_uuid:
             return
         try:
             self.client.notarize(
-                action_id=action_id,
+                action_uuid=action_uuid,
                 outcome="completed",
                 outcome_details=f"Tool '{tool_name}' completed. Result length: {len(str(result))} chars",
             )
@@ -96,12 +96,12 @@ class AiraPlugin:
     def on_tool_error(self, tool_name: str, error: BaseException) -> None:
         """Notarize a failed tool call."""
         with self._lock:
-            action_id = self._inflight.pop(tool_name, None)
-        if not action_id:
+            action_uuid = self._inflight.pop(tool_name, None)
+        if not action_uuid:
             return
         try:
             self.client.notarize(
-                action_id=action_id,
+                action_uuid=action_uuid,
                 outcome="failed",
                 outcome_details=f"Tool '{tool_name}' errored: {type(error).__name__}: {str(error)[:200]}",
             )

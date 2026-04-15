@@ -74,7 +74,7 @@ class AiraCallbackHandler(BaseCallbackHandler):
             "llm_end": "llm_completion",
             **(action_types or {}),
         }
-        # Map run_id → action_id so on_tool_end can notarize the right action.
+        # Map run_uuid → action_uuid so on_tool_end can notarize the right action.
         self._inflight: dict[Any, str] = {}
         self._lock = threading.Lock()
 
@@ -85,7 +85,7 @@ class AiraCallbackHandler(BaseCallbackHandler):
         serialized: dict,
         input_str: str,
         *,
-        run_id: Any = None,
+        run_uuid: Any = None,
         **kwargs: Any,
     ) -> None:
         """Authorize the tool call BEFORE it executes.
@@ -114,28 +114,28 @@ class AiraCallbackHandler(BaseCallbackHandler):
             raise AiraToolDenied(
                 tool_name,
                 "PENDING_APPROVAL",
-                f"Tool call held for approval (action {auth.action_id})",
+                f"Tool call held for approval (action {auth.action_uuid})",
             )
 
         with self._lock:
-            self._inflight[run_id] = auth.action_id
+            self._inflight[run_uuid] = auth.action_uuid
 
     def on_tool_end(
         self,
         output: str,
         *,
-        run_id: Any = None,
+        run_uuid: Any = None,
         name: str = "unknown",
         **kwargs: Any,
     ) -> None:
         """Notarize the tool call after successful execution."""
         with self._lock:
-            action_id = self._inflight.pop(run_id, None)
-        if not action_id:
+            action_uuid = self._inflight.pop(run_uuid, None)
+        if not action_uuid:
             return
         try:
             self.client.notarize(
-                action_id=action_id,
+                action_uuid=action_uuid,
                 outcome="completed",
                 outcome_details=f"Tool '{name}' completed. Output length: {len(str(output))} chars",
             )
@@ -146,18 +146,18 @@ class AiraCallbackHandler(BaseCallbackHandler):
         self,
         error: BaseException,
         *,
-        run_id: Any = None,
+        run_uuid: Any = None,
         name: str = "unknown",
         **kwargs: Any,
     ) -> None:
         """Notarize a failed tool call."""
         with self._lock:
-            action_id = self._inflight.pop(run_id, None)
-        if not action_id:
+            action_uuid = self._inflight.pop(run_uuid, None)
+        if not action_uuid:
             return
         try:
             self.client.notarize(
-                action_id=action_id,
+                action_uuid=action_uuid,
                 outcome="failed",
                 outcome_details=f"Tool '{name}' errored: {type(error).__name__}: {str(error)[:200]}",
             )
@@ -181,7 +181,7 @@ class AiraCallbackHandler(BaseCallbackHandler):
             )
             if auth.status == "authorized":
                 self.client.notarize(
-                    action_id=auth.action_id,
+                    action_uuid=auth.action_uuid,
                     outcome="completed",
                     outcome_details=details[:5000],
                 )
