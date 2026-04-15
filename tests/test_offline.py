@@ -17,7 +17,7 @@ def _resp(data, status: int = 200) -> httpx.Response:
 
 
 RECEIPT = {
-    "action_id": "act-1", "receipt_id": "rct-1", "payload_hash": "sha256:abc",
+    "action_uuid": "act-1", "receipt_uuid": "rct-1", "payload_hash": "sha256:abc",
     "signature": "ed25519:xyz", "timestamp_token": "ts",
     "created_at": "2026-03-25T00:00:00Z", "request_id": "req-1", "warnings": None,
 }
@@ -98,7 +98,7 @@ class TestOfflineModeClient:
         with patch.object(c._client, "request", return_value=_resp(RECEIPT, 201)):
             results = c.sync()
         assert len(results) == 2
-        assert results[0]["action_id"] == "act-1"
+        assert results[0]["action_uuid"] == "act-1"
         assert c._queue.pending_count == 0
         c.close()
 
@@ -129,10 +129,10 @@ class TestOfflineModeClient:
             results = c.sync()
 
         assert len(results) == 3
-        assert results[0]["action_id"] == "act-1"
+        assert results[0]["action_uuid"] == "act-1"
         assert results[1]["_error"] is True
         assert results[1]["_status"] == 400
-        assert results[2]["action_id"] == "act-1"
+        assert results[2]["action_uuid"] == "act-1"
         c.close()
 
 
@@ -165,7 +165,7 @@ class TestAsyncOfflineMode:
         with patch.object(c._client, "request", new_callable=AsyncMock, return_value=mock_resp):
             results = await c.sync()
         assert len(results) == 2
-        assert results[0]["action_id"] == "act-1"
+        assert results[0]["action_uuid"] == "act-1"
         assert c._queue.pending_count == 0
         await c.close()
 

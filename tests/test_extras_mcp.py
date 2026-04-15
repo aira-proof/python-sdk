@@ -155,7 +155,7 @@ class TestMCPServer(unittest.TestCase):
 
         class _FakeAuth:
             def __init__(self):
-                self.action_id = "act_123"
+                self.action_uuid = "act_123"
                 self.status = "authorized"
 
         mock_client.authorize.return_value = _FakeAuth()
@@ -165,19 +165,19 @@ class TestMCPServer(unittest.TestCase):
         ))
         mock_client.authorize.assert_called_once()
         data = json.loads(result[0].text)
-        self.assertEqual(data["action_id"], "act_123")
+        self.assertEqual(data["action_uuid"], "act_123")
         self.assertEqual(data["status"], "authorized")
 
-    # 6b. notarize_action tool calls client.notarize(action_id, outcome)
+    # 6b. notarize_action tool calls client.notarize(action_uuid, outcome)
     def test_notarize_action_calls_client_notarize(self):
         server, mock_client, _ = self._create_server()
         mock_client.notarize.return_value = _FakeReceipt()
         result = _run(server._call_tool_handler(
             "notarize_action",
-            {"action_id": "act_123", "outcome": "completed", "outcome_details": "ok"},
+            {"action_uuid": "act_123", "outcome": "completed", "outcome_details": "ok"},
         ))
         mock_client.notarize.assert_called_once_with(
-            action_id="act_123", outcome="completed", outcome_details="ok"
+            action_uuid="act_123", outcome="completed", outcome_details="ok"
         )
         self.assertEqual(len(result), 1)
         data = json.loads(result[0].text)
@@ -189,7 +189,7 @@ class TestMCPServer(unittest.TestCase):
         mock_client.verify_action.return_value = _FakeVerifyResult()
         result = _run(server._call_tool_handler(
             "verify_action",
-            {"action_id": "act_456"},
+            {"action_uuid": "act_456"},
         ))
         mock_client.verify_action.assert_called_once_with("act_456")
         data = json.loads(result[0].text)
@@ -198,14 +198,14 @@ class TestMCPServer(unittest.TestCase):
     # 8. get_receipt tool calls client.get_receipt
     def test_get_receipt_calls_client_get_receipt(self):
         server, mock_client, _ = self._create_server()
-        mock_client.get_receipt.return_value = {"receipt_id": "rec_789", "hash": "sha256:abc"}
+        mock_client.get_receipt.return_value = {"receipt_uuid": "rec_789", "hash": "sha256:abc"}
         result = _run(server._call_tool_handler(
             "get_receipt",
-            {"receipt_id": "rec_789"},
+            {"receipt_uuid": "rec_789"},
         ))
         mock_client.get_receipt.assert_called_once_with("rec_789")
         data = json.loads(result[0].text)
-        self.assertEqual(data["receipt_id"], "rec_789")
+        self.assertEqual(data["receipt_uuid"], "rec_789")
 
     # 8b. resolve_did tool calls client.resolve_did
     def test_resolve_did_calls_client_resolve_did(self):
@@ -251,7 +251,7 @@ class TestMCPServer(unittest.TestCase):
         mock_client.notarize.side_effect = RuntimeError("API exploded")
         result = _run(server._call_tool_handler(
             "notarize_action",
-            {"action_id": "act_123"},
+            {"action_uuid": "act_123"},
         ))
         data = json.loads(result[0].text)
         self.assertIn("error", data)

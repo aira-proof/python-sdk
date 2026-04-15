@@ -58,14 +58,14 @@ def test_verify_missing_prefix():
 def test_parse_event_valid():
     payload = json.dumps({
         "event": "action.notarized",
-        "data": {"action_id": "a-1"},
+        "data": {"action_uuid": "a-1"},
         "timestamp": "2026-03-31T00:00:00Z",
         "delivery_id": "d-42",
     }).encode()
     evt = parse_event(payload)
     assert isinstance(evt, WebhookEvent)
     assert evt.event_type == "action.notarized"
-    assert evt.data == {"action_id": "a-1"}
+    assert evt.data == {"action_uuid": "a-1"}
     assert evt.timestamp == "2026-03-31T00:00:00Z"
     assert evt.delivery_id == "d-42"
 

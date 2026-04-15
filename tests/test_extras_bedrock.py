@@ -8,10 +8,10 @@ import pytest
 from aira.extras.bedrock import AiraBedrockHandler, AiraInvocationDenied
 
 
-def _auth(status: str = "authorized", action_id: str = "act-1"):
+def _auth(status: str = "authorized", action_uuid: str = "act-1"):
     a = MagicMock()
     a.status = status
-    a.action_id = action_id
+    a.action_uuid = action_uuid
     return a
 
 

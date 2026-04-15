@@ -24,13 +24,13 @@ class Authorization:
 
     Status values:
     - ``"authorized"``: the agent may now execute the action, then call
-      :meth:`Aira.notarize` with ``action_id`` to mint the receipt.
+      :meth:`Aira.notarize` with ``action_uuid`` to mint the receipt.
     - ``"pending_approval"``: the action is held for human review. The agent
       should not execute yet — wait for an approver to act, then poll
       :meth:`Aira.get_action` or handle the ``action.approved`` webhook.
     """
 
-    action_id: str
+    action_uuid: str
     status: str  # "authorized" | "pending_approval"
     created_at: str
     request_id: str
@@ -43,17 +43,17 @@ class ActionReceipt:
 
     Status values:
     - ``"notarized"``: the action outcome was reported as ``"completed"`` and
-      a cryptographic receipt has been minted. ``receipt_id``, ``payload_hash``,
+      a cryptographic receipt has been minted. ``receipt_uuid``, ``payload_hash``,
       and ``signature`` are populated.
     - ``"failed"``: the action outcome was reported as ``"failed"``. No
-      receipt is minted — signature/payload_hash/receipt_id will be ``None``.
+      receipt is minted — signature/payload_hash/receipt_uuid will be ``None``.
     """
 
-    action_id: str
+    action_uuid: str
     status: str  # "notarized" | "failed"
     created_at: str
     request_id: str
-    receipt_id: str | None = None
+    receipt_uuid: str | None = None
     payload_hash: str | None = None
     signature: str | None = None
     timestamp_token: str | None = None
@@ -88,10 +88,10 @@ class OutputPolicy:
 class CosignResult:
     """Response from :meth:`Aira.cosign_action` — human co-signature on an action."""
 
-    action_id: str
+    action_uuid: str
     cosigner_email: str
     cosigned_at: str
-    cosignature_id: str
+    cosignature_uuid: str
     request_id: str | None = None
 
 
@@ -104,7 +104,7 @@ class AuthorizationSummary:
 
 @dataclass
 class ReceiptSummary:
-    receipt_id: str
+    receipt_uuid: str
     payload_hash: str
     signature: str
     public_key_id: str
@@ -116,8 +116,8 @@ class ReceiptSummary:
 
 @dataclass
 class ActionDetail:
-    action_id: str
-    org_id: str
+    action_uuid: str
+    org_uuid: str
     action_type: str
     status: str
     legal_hold: bool
@@ -130,7 +130,7 @@ class ActionDetail:
     details_storage_key: str | None = None
     model_id: str | None = None
     model_version: str | None = None
-    parent_action_id: str | None = None
+    parent_action_uuid: str | None = None
     receipt: ReceiptSummary | None = None
     system_prompt_hash: str | None = None
     tool_inputs_hash: str | None = None
@@ -171,7 +171,7 @@ class AgentDetail:
 class EvidencePackage:
     id: str
     title: str
-    action_ids: list[str]
+    action_uuids: list[str]
     package_hash: str
     signature: str
     status: str
@@ -206,7 +206,7 @@ class EscrowTransaction:
     status: str
     created_at: str
     description: str | None = None
-    reference_action_id: str | None = None
+    reference_action_uuid: str | None = None
 
 
 @dataclass
@@ -218,7 +218,7 @@ class EscrowAccount:
     created_at: str
     request_id: str
     agent_id: str | None = None
-    counterparty_org_id: str | None = None
+    counterparty_org_uuid: str | None = None
     purpose: str | None = None
     transactions: list[EscrowTransaction] = field(default_factory=list)
 
@@ -241,8 +241,8 @@ class VerifyResult:
     message: str
     verified_at: str
     request_id: str
-    receipt_id: str | None = None
-    action_id: str | None = None
+    receipt_uuid: str | None = None
+    action_uuid: str | None = None
     payload_hash: str | None = None
     signature: str | None = None
     public_key: str | None = None
@@ -279,10 +279,10 @@ class ComplianceReport:
     status: str  # "pending" | "generating" | "ready" | "failed"
     created_at: str
     request_id: str
-    org_id: str | None = None
+    org_uuid: str | None = None
     period_start: str | None = None
     period_end: str | None = None
-    action_id: str | None = None
+    action_uuid: str | None = None
     agent_filter: list[str] | None = None
     receipt_count: int | None = None
     pdf_size_bytes: int | None = None
@@ -300,7 +300,7 @@ class ComplianceReport:
 class ComplianceReportVerification:
     """Result of :meth:`Aira.verify_compliance_report`."""
 
-    report_id: str
+    report_uuid: str
     valid: bool
     checks: dict
     request_id: str

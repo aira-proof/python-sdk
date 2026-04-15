@@ -41,7 +41,7 @@ def create_server(api_key: str | None = None, base_url: str | None = None) -> Se
                 description=(
                     "Step 1 of 2: ask Aira for permission to perform an action. "
                     "Returns an Authorization with status 'authorized' or 'pending_approval'. "
-                    "Call notarize_action with the returned action_id after executing."
+                    "Call notarize_action with the returned action_uuid after executing."
                 ),
                 inputSchema={
                     "type": "object",
@@ -64,11 +64,11 @@ def create_server(api_key: str | None = None, base_url: str | None = None) -> Se
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "action_id": {"type": "string", "description": "action_id returned by authorize_action"},
+                        "action_uuid": {"type": "string", "description": "action_uuid returned by authorize_action"},
                         "outcome": {"type": "string", "enum": ["completed", "failed"], "description": "Outcome of the action"},
                         "outcome_details": {"type": "string", "description": "Optional free-form description of what happened"},
                     },
-                    "required": ["action_id"],
+                    "required": ["action_uuid"],
                 },
             ),
             Tool(
@@ -77,9 +77,9 @@ def create_server(api_key: str | None = None, base_url: str | None = None) -> Se
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "action_id": {"type": "string", "description": "Action UUID"},
+                        "action_uuid": {"type": "string", "description": "Action UUID"},
                     },
-                    "required": ["action_id"],
+                    "required": ["action_uuid"],
                 },
             ),
             Tool(
@@ -88,9 +88,9 @@ def create_server(api_key: str | None = None, base_url: str | None = None) -> Se
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "receipt_id": {"type": "string", "description": "Receipt UUID"},
+                        "receipt_uuid": {"type": "string", "description": "Receipt UUID"},
                     },
-                    "required": ["receipt_id"],
+                    "required": ["receipt_uuid"],
                 },
             ),
             Tool(
@@ -137,18 +137,18 @@ def create_server(api_key: str | None = None, base_url: str | None = None) -> Se
                 return [TextContent(type="text", text=json.dumps(data, default=str))]
             elif name == "notarize_action":
                 result = client.notarize(
-                    action_id=arguments["action_id"],
+                    action_uuid=arguments["action_uuid"],
                     outcome=arguments.get("outcome", "completed"),
                     outcome_details=arguments.get("outcome_details"),
                 )
                 data = result.__dict__ if hasattr(result, "__dict__") else result
                 return [TextContent(type="text", text=json.dumps(data, default=str))]
             elif name == "verify_action":
-                result = client.verify_action(arguments["action_id"])
+                result = client.verify_action(arguments["action_uuid"])
                 data = result.__dict__ if hasattr(result, "__dict__") else result
                 return [TextContent(type="text", text=json.dumps(data, default=str))]
             elif name == "get_receipt":
-                result = client.get_receipt(arguments["receipt_id"])
+                result = client.get_receipt(arguments["receipt_uuid"])
                 data = result.__dict__ if hasattr(result, "__dict__") else result
                 return [TextContent(type="text", text=json.dumps(data, default=str))]
             elif name == "resolve_did":

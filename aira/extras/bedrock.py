@@ -51,14 +51,14 @@ class AiraBedrockHandler:
             raise AiraInvocationDenied(
                 target,
                 "PENDING_APPROVAL",
-                f"Bedrock call held for approval (action {auth.action_id})",
+                f"Bedrock call held for approval (action {auth.action_uuid})",
             )
-        return auth.action_id
+        return auth.action_uuid
 
-    def _notarize(self, action_id: str, outcome: str, details: str) -> None:
+    def _notarize(self, action_uuid: str, outcome: str, details: str) -> None:
         try:
             self.client.notarize(
-                action_id=action_id,
+                action_uuid=action_uuid,
                 outcome=outcome,
                 outcome_details=details[:5000],
             )
@@ -72,7 +72,7 @@ class AiraBedrockHandler:
         @functools.wraps(original)
         def wrapped(**kwargs: Any) -> Any:
             model_id = kwargs.get("modelId", "unknown")
-            action_id = self._authorize(
+            action_uuid = self._authorize(
                 "model_invoked",
                 model_id,
                 f"Bedrock invoke_model: {model_id}",
@@ -81,13 +81,13 @@ class AiraBedrockHandler:
                 response = original(**kwargs)
             except Exception as e:
                 self._notarize(
-                    action_id,
+                    action_uuid,
                     "failed",
                     f"Bedrock invoke_model '{model_id}' errored: {type(e).__name__}: {str(e)[:200]}",
                 )
                 raise
             self._notarize(
-                action_id,
+                action_uuid,
                 "completed",
                 f"Bedrock invoke_model: {model_id}",
             )
@@ -102,7 +102,7 @@ class AiraBedrockHandler:
         @functools.wraps(original)
         def wrapped(**kwargs: Any) -> Any:
             agent_id = kwargs.get("agentId", "unknown")
-            action_id = self._authorize(
+            action_uuid = self._authorize(
                 "agent_invoked",
                 agent_id,
                 f"Bedrock invoke_agent: {agent_id}",
@@ -111,13 +111,13 @@ class AiraBedrockHandler:
                 response = original(**kwargs)
             except Exception as e:
                 self._notarize(
-                    action_id,
+                    action_uuid,
                     "failed",
                     f"Bedrock invoke_agent '{agent_id}' errored: {type(e).__name__}: {str(e)[:200]}",
                 )
                 raise
             self._notarize(
-                action_id,
+                action_uuid,
                 "completed",
                 f"Bedrock invoke_agent: {agent_id}",
             )

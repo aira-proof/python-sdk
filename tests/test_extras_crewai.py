@@ -8,10 +8,10 @@ import pytest
 from aira.extras.crewai import AiraCrewHook
 
 
-def _auth(status: str = "authorized", action_id: str = "act-1"):
+def _auth(status: str = "authorized", action_uuid: str = "act-1"):
     a = MagicMock()
     a.status = status
-    a.action_id = action_id
+    a.action_uuid = action_uuid
     return a
 
 
@@ -37,7 +37,7 @@ class TestAiraCrewHook:
 
         mock_client.notarize.assert_called_once()
         nk = mock_client.notarize.call_args[1]
-        assert nk["action_id"] == "act-1"
+        assert nk["action_uuid"] == "act-1"
         assert nk["outcome"] == "completed"
 
     def test_step_callback_authorizes_and_notarizes(self, mock_client):

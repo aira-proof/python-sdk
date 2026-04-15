@@ -30,10 +30,10 @@ sys.modules["langchain_core.callbacks.base"] = _mock_callbacks_base
 from aira.extras.langchain import AiraCallbackHandler, AiraToolDenied
 
 
-def _auth(status: str = "authorized", action_id: str = "act-1"):
+def _auth(status: str = "authorized", action_uuid: str = "act-1"):
     a = MagicMock()
     a.status = status
-    a.action_id = action_id
+    a.action_uuid = action_uuid
     return a
 
 
@@ -51,27 +51,27 @@ class TestAiraCallbackHandler(unittest.TestCase):
     # 1. on_tool_start calls authorize BEFORE the tool runs
     def test_on_tool_start_calls_authorize(self):
         handler, client = self._make_handler()
-        handler.on_tool_start({"name": "search"}, "query input", run_id="r1")
+        handler.on_tool_start({"name": "search"}, "query input", run_uuid="r1")
         client.authorize.assert_called_once()
         call_kwargs = client.authorize.call_args[1]
         self.assertEqual(call_kwargs["action_type"], "tool_call")
         self.assertEqual(call_kwargs["agent_id"], "test-agent")
 
-    # 2. on_tool_end calls notarize with the action_id from on_tool_start
+    # 2. on_tool_end calls notarize with the action_uuid from on_tool_start
     def test_on_tool_end_notarizes_completed(self):
         handler, client = self._make_handler()
-        handler.on_tool_start({"name": "search"}, "q", run_id="r1")
-        handler.on_tool_end("some output", run_id="r1", name="search")
+        handler.on_tool_start({"name": "search"}, "q", run_uuid="r1")
+        handler.on_tool_end("some output", run_uuid="r1", name="search")
         client.notarize.assert_called_once()
         kw = client.notarize.call_args[1]
-        self.assertEqual(kw["action_id"], "act-1")
+        self.assertEqual(kw["action_uuid"], "act-1")
         self.assertEqual(kw["outcome"], "completed")
 
     # 3. on_tool_error notarizes with outcome=failed
     def test_on_tool_error_notarizes_failed(self):
         handler, client = self._make_handler()
-        handler.on_tool_start({"name": "search"}, "q", run_id="r1")
-        handler.on_tool_error(RuntimeError("boom"), run_id="r1", name="search")
+        handler.on_tool_start({"name": "search"}, "q", run_uuid="r1")
+        handler.on_tool_error(RuntimeError("boom"), run_uuid="r1", name="search")
         client.notarize.assert_called_once()
         kw = client.notarize.call_args[1]
         self.assertEqual(kw["outcome"], "failed")
@@ -85,7 +85,7 @@ class TestAiraCallbackHandler(unittest.TestCase):
         err.message = "Blocked by policy"
         client.authorize.side_effect = err
         with self.assertRaises(AiraToolDenied) as ctx:
-            handler.on_tool_start({"name": "search"}, "q", run_id="r1")
+            handler.on_tool_start({"name": "search"}, "q", run_uuid="r1")
         self.assertEqual(ctx.exception.code, "POLICY_DENIED")
         client.notarize.assert_not_called()
 
@@ -94,14 +94,14 @@ class TestAiraCallbackHandler(unittest.TestCase):
         handler, client = self._make_handler()
         client.authorize.return_value = _auth("pending_approval")
         with self.assertRaises(AiraToolDenied) as ctx:
-            handler.on_tool_start({"name": "search"}, "q", run_id="r1")
+            handler.on_tool_start({"name": "search"}, "q", run_uuid="r1")
         self.assertEqual(ctx.exception.code, "PENDING_APPROVAL")
         client.notarize.assert_not_called()
 
     # 6. custom action_types override defaults
     def test_custom_action_types_override_defaults(self):
         handler, client = self._make_handler(action_types={"tool": "custom_tool"})
-        handler.on_tool_start({"name": "calc"}, "q", run_id="r1")
+        handler.on_tool_start({"name": "calc"}, "q", run_uuid="r1")
         kw = client.authorize.call_args[1]
         self.assertEqual(kw["action_type"], "custom_tool")
 
@@ -109,14 +109,14 @@ class TestAiraCallbackHandler(unittest.TestCase):
     def test_notarize_failure_is_non_blocking(self):
         handler, client = self._make_handler()
         client.notarize.side_effect = RuntimeError("API down")
-        handler.on_tool_start({"name": "search"}, "q", run_id="r1")
+        handler.on_tool_start({"name": "search"}, "q", run_uuid="r1")
         # Should not raise
-        handler.on_tool_end("output", run_id="r1", name="search")
+        handler.on_tool_end("output", run_uuid="r1", name="search")
 
     # 8. agent_id / model_id passed through to authorize
     def test_agent_model_id_passed_through(self):
         handler, client = self._make_handler(model_id="gpt-4")
-        handler.on_tool_start({"name": "tool1"}, "q", run_id="r1")
+        handler.on_tool_start({"name": "tool1"}, "q", run_uuid="r1")
         kw = client.authorize.call_args[1]
         self.assertEqual(kw["agent_id"], "test-agent")
         self.assertEqual(kw["model_id"], "gpt-4")
@@ -179,16 +179,16 @@ class TestAiraCallbackHandler(unittest.TestCase):
     # 13. raw tool output is not sent to authorize
     def test_no_raw_output_in_authorize(self):
         handler, client = self._make_handler()
-        handler.on_tool_start({"name": "search"}, "super_secret_input_123", run_id="r1")
+        handler.on_tool_start({"name": "search"}, "super_secret_input_123", run_uuid="r1")
         kw = client.authorize.call_args[1]
         self.assertNotIn("super_secret_input_123", kw["details"])
 
     # 14. inflight map cleaned up after notarize
     def test_inflight_cleaned_up_after_end(self):
         handler, client = self._make_handler()
-        handler.on_tool_start({"name": "search"}, "q", run_id="r1")
+        handler.on_tool_start({"name": "search"}, "q", run_uuid="r1")
         self.assertIn("r1", handler._inflight)
-        handler.on_tool_end("output", run_id="r1", name="search")
+        handler.on_tool_end("output", run_uuid="r1", name="search")
         self.assertNotIn("r1", handler._inflight)
 
 

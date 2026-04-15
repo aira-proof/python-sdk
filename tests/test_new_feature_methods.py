@@ -34,7 +34,7 @@ def test_authorize_passes_replay_context(aira):
         nonlocal expected_body
         expected_body = body
         return {
-            "action_id": "a1",
+            "action_uuid": "a1",
             "status": "authorized",
             "created_at": "2026-04-11T10:00:00Z",
             "request_id": "r1",
@@ -51,7 +51,7 @@ def test_authorize_passes_replay_context(aira):
             execution_env={"sdk_version": "2.0.1", "framework": "langchain"},
         )
 
-    assert result.action_id == "a1"
+    assert result.action_uuid == "a1"
     assert expected_body["system_prompt_hash"] == "sha256:" + "a" * 64
     assert expected_body["tool_inputs_hash"] == "sha256:" + "b" * 64
     assert expected_body["model_params"] == {"temperature": 0.0, "seed": 42}
@@ -66,7 +66,7 @@ def test_authorize_omits_unset_replay_context(aira):
         nonlocal captured
         captured = body
         return {
-            "action_id": "a1", "status": "authorized",
+            "action_uuid": "a1", "status": "authorized",
             "created_at": "x", "request_id": "r", "warnings": None,
         }
 
@@ -78,7 +78,7 @@ def test_authorize_omits_unset_replay_context(aira):
 
 
 def test_get_replay_context(aira):
-    expected = {"action_id": "a1", "system_prompt_hash": "sha256:abc", "model_params": {"temperature": 0.7}}
+    expected = {"action_uuid": "a1", "system_prompt_hash": "sha256:abc", "model_params": {"temperature": 0.7}}
     with patch.object(aira, "_get", return_value=expected) as m:
         result = aira.get_replay_context("a1")
     m.assert_called_once_with("/actions/a1/replay-context")
@@ -127,7 +127,7 @@ def test_get_compliance_bundle(aira):
 
 def test_export_compliance_bundle(aira):
     expected = {
-        "bundle_id": "b1",
+        "bundle_uuid": "b1",
         "merkle_root": "abc",
         "receipts": [],
         "signing": {"jwks_url": "https://api.airaproof.com/api/v1/.well-known/jwks.json"},
@@ -140,11 +140,11 @@ def test_export_compliance_bundle(aira):
 
 
 def test_get_bundle_inclusion_proof(aira):
-    expected = {"bundle_id": "b1", "receipt_id": "r1", "leaf_hash": "h", "siblings": []}
+    expected = {"bundle_uuid": "b1", "receipt_uuid": "r1", "leaf_hash": "h", "siblings": []}
     with patch.object(aira, "_get", return_value=expected) as m:
         result = aira.get_bundle_inclusion_proof("b1", "r1")
     m.assert_called_once_with("/compliance/bundles/b1/inclusion-proof/r1")
-    assert result["receipt_id"] == "r1"
+    assert result["receipt_uuid"] == "r1"
 
 
 # ─── Drift detection ─────────────────────────────────────────────────
@@ -259,8 +259,8 @@ def test_get_settlement(aira):
 
 def test_get_settlement_inclusion_proof(aira):
     expected = {
-        "settlement_id": "s1",
-        "receipt_id": "r1",
+        "settlement_uuid": "s1",
+        "receipt_uuid": "r1",
         "merkle_root": "abc",
         "leaf_hash": "h",
         "index": 5,

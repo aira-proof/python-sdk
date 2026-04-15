@@ -52,8 +52,8 @@ class AiraError(Exception):
         code: Error code string (e.g. ``"POLICY_DENIED"``, ``"NOT_FOUND"``).
         message: Human-readable error message from the backend.
         details: Optional dict with additional context from the backend.
-            For ``POLICY_DENIED`` errors this includes ``action_id`` and
-            ``policy_id`` of the policy that denied the action.
+            For ``POLICY_DENIED`` errors this includes ``action_uuid`` and
+            ``policy_uuid`` of the policy that denied the action.
 
     There is a single error type — catch ``AiraError`` and branch on
     ``e.code`` (``"POLICY_DENIED"``, ``"INVALID_STATE"``, etc.). There are
@@ -229,7 +229,7 @@ class Aira:
             # Step 2: execute, then report outcome
             result = send_wire(75000)
             aira.notarize(
-                action_id=auth.action_id,
+                action_uuid=auth.action_uuid,
                 outcome="completed",
                 outcome_details=f"Sent. ref={result.id}",
             )
@@ -311,7 +311,7 @@ class Aira:
         instruction_hash: str | None = None,
         model_id: str | None = None,
         model_version: str | None = None,
-        parent_action_id: str | None = None,
+        parent_action_uuid: str | None = None,
         endpoint_url: str | None = None,
         store_details: bool = False,
         idempotency_key: str | None = None,
@@ -330,7 +330,7 @@ class Aira:
         :class:`Authorization` has a status that tells the agent what to do:
 
         - ``"authorized"``: agent may now execute, then call :meth:`notarize`
-          with the returned ``action_id`` to mint the receipt.
+          with the returned ``action_uuid`` to mint the receipt.
         - ``"pending_approval"``: held for human review. The agent should not
           execute — wait for an approver to act on it, then handle the
           ``action.approved`` webhook or poll :meth:`get_action`.
@@ -347,8 +347,8 @@ class Aira:
 
         Raises:
             AiraError: with ``code="POLICY_DENIED"`` if a policy denied the
-                action. ``error.details`` contains ``action_id`` and
-                ``policy_id``. Other codes include ``ENDPOINT_TLS_MISMATCH``,
+                action. ``error.details`` contains ``action_uuid`` and
+                ``policy_uuid``. Other codes include ``ENDPOINT_TLS_MISMATCH``,
                 ``ENDPOINT_NOT_WHITELISTED``, ``DUPLICATE_REQUEST``.
         """
         body = _build_body(
@@ -359,7 +359,7 @@ class Aira:
             instruction_hash=instruction_hash,
             model_id=model_id,
             model_version=model_version,
-            parent_action_id=parent_action_id,
+            parent_action_uuid=parent_action_uuid,
             endpoint_url=endpoint_url,
             idempotency_key=idempotency_key,
             require_approval=require_approval or None,
@@ -375,7 +375,7 @@ class Aira:
 
     def notarize(
         self,
-        action_id: str,
+        action_uuid: str,
         outcome: str = "completed",
         outcome_details: str | None = None,
     ) -> ActionReceipt:
@@ -387,7 +387,7 @@ class Aira:
         is minted — the action record just transitions to the failed state.
 
         Args:
-            action_id: The ``action_id`` returned by :meth:`authorize`.
+            action_uuid: The ``action_uuid`` returned by :meth:`authorize`.
             outcome: ``"completed"`` or ``"failed"``.
             outcome_details: Optional free-form text describing the outcome
                 (e.g. ``"Wire sent, ref TX12345"`` or ``"Rejected by upstream API"``).
@@ -399,12 +399,12 @@ class Aira:
         """
         body = _build_body(outcome=outcome, outcome_details=outcome_details)
         return _to_dataclass(
-            ActionReceipt, self._post(f"/actions/{action_id}/notarize", body)
+            ActionReceipt, self._post(f"/actions/{action_uuid}/notarize", body)
         )
 
-    def get_action(self, action_id: str) -> ActionDetail:
+    def get_action(self, action_uuid: str) -> ActionDetail:
         """Get full action details including receipt and authorizations."""
-        return _to_dataclass(ActionDetail, self._get(f"/actions/{action_id}"))
+        return _to_dataclass(ActionDetail, self._get(f"/actions/{action_uuid}"))
 
     def list_actions(
         self, page: int = 1, per_page: int = 20,
@@ -414,31 +414,31 @@ class Aira:
         params = _build_body(page=page, per_page=per_page, action_type=action_type, agent_id=agent_id, status=status)
         return _paginated(self._get("/actions", params))
 
-    def cosign_action(self, action_id: str) -> CosignResult:
+    def cosign_action(self, action_uuid: str) -> CosignResult:
         """Human co-signature on an authorized or notarized action.
 
         Used for high-stakes actions where a human signs alongside the agent.
         Requires JWT auth (dashboard user, not an API key).
         """
         return _to_dataclass(
-            CosignResult, self._post(f"/actions/{action_id}/cosign", {})
+            CosignResult, self._post(f"/actions/{action_uuid}/cosign", {})
         )
 
-    def set_legal_hold(self, action_id: str) -> dict:
+    def set_legal_hold(self, action_uuid: str) -> dict:
         """Set legal hold — prevents deletion."""
-        return self._post(f"/actions/{action_id}/hold", {})
+        return self._post(f"/actions/{action_uuid}/hold", {})
 
-    def release_legal_hold(self, action_id: str) -> dict:
+    def release_legal_hold(self, action_uuid: str) -> dict:
         """Release legal hold."""
-        return self._delete(f"/actions/{action_id}/hold")
+        return self._delete(f"/actions/{action_uuid}/hold")
 
-    def get_action_chain(self, action_id: str) -> list[dict]:
+    def get_action_chain(self, action_uuid: str) -> list[dict]:
         """Get chain of custody."""
-        return self._get(f"/actions/{action_id}/chain").get("chain", [])
+        return self._get(f"/actions/{action_uuid}/chain").get("chain", [])
 
-    def verify_action(self, action_id: str) -> VerifyResult:
+    def verify_action(self, action_uuid: str) -> VerifyResult:
         """Public verification — no auth needed."""
-        data = _handle_response(self._public_client.get(f"/verify/action/{action_id}"))
+        data = _handle_response(self._public_client.get(f"/verify/action/{action_uuid}"))
         return _to_dataclass(VerifyResult, data)
 
     # ==================== Agents ====================
@@ -482,9 +482,9 @@ class Aira:
     def decommission_agent(self, slug: str) -> AgentDetail:
         return _to_dataclass(AgentDetail, self._post(f"/agents/{slug}/decommission", {}))
 
-    def transfer_agent(self, slug: str, to_org_id: str, reason: str | None = None) -> dict:
+    def transfer_agent(self, slug: str, to_org_uuid: str, reason: str | None = None) -> dict:
         """Transfer agent ownership to another organization."""
-        return self._post(f"/agents/{slug}/transfer", _build_body(to_org_id=to_org_id, reason=reason))
+        return self._post(f"/agents/{slug}/transfer", _build_body(to_org_uuid=to_org_uuid, reason=reason))
 
     def get_agent_actions(self, slug: str, page: int = 1) -> PaginatedList:
         """List actions performed by this agent."""
@@ -506,35 +506,35 @@ class Aira:
 
     # ==================== Receipts ====================
 
-    def get_receipt(self, receipt_id: str) -> dict:
-        return self._get(f"/receipts/{receipt_id}")
+    def get_receipt(self, receipt_uuid: str) -> dict:
+        return self._get(f"/receipts/{receipt_uuid}")
 
-    def export_receipt(self, receipt_id: str, format: str = "json") -> dict:
+    def export_receipt(self, receipt_uuid: str, format: str = "json") -> dict:
         """Export receipt. format: 'json' or 'pdf'."""
-        return self._get(f"/receipts/{receipt_id}/export", {"format": format})
+        return self._get(f"/receipts/{receipt_uuid}/export", {"format": format})
 
     # ==================== Evidence ====================
 
     def create_evidence_package(
-        self, title: str, action_ids: list[str], description: str | None = None,
+        self, title: str, action_uuids: list[str], description: str | None = None,
         agent_slugs: list[str] | None = None,
     ) -> EvidencePackage:
-        body = _build_body(title=title, action_ids=action_ids, description=description, agent_slugs=agent_slugs)
+        body = _build_body(title=title, action_uuids=action_uuids, description=description, agent_slugs=agent_slugs)
         return _to_dataclass(EvidencePackage, self._post("/evidence/packages", body))
 
     def list_evidence_packages(self, page: int = 1) -> PaginatedList:
         return _paginated(self._get("/evidence/packages", {"page": page}))
 
-    def get_evidence_package(self, package_id: str) -> EvidencePackage:
-        return _to_dataclass(EvidencePackage, self._get(f"/evidence/packages/{package_id}"))
+    def get_evidence_package(self, package_uuid: str) -> EvidencePackage:
+        return _to_dataclass(EvidencePackage, self._get(f"/evidence/packages/{package_uuid}"))
 
     def time_travel(self, point_in_time: str, agent_slug: str | None = None, action_type: str | None = None) -> dict:
         """Query actions as they existed at a point in time."""
         return self._post("/evidence/time-travel", _build_body(point_in_time=point_in_time, agent_slug=agent_slug, action_type=action_type))
 
-    def liability_chain(self, action_id: str, max_depth: int = 10) -> list[dict]:
+    def liability_chain(self, action_uuid: str, max_depth: int = 10) -> list[dict]:
         """Walk the full liability chain for an action."""
-        data = self._get(f"/evidence/liability-chain/{action_id}", {"max_depth": max_depth})
+        data = self._get(f"/evidence/liability-chain/{action_uuid}", {"max_depth": max_depth})
         return data.get("chain", [])
 
     # ==================== Estate ====================
@@ -574,28 +574,28 @@ class Aira:
 
     def create_escrow_account(
         self, purpose: str | None = None, currency: str = "EUR",
-        agent_id: str | None = None, counterparty_org_id: str | None = None,
+        agent_id: str | None = None, counterparty_org_uuid: str | None = None,
     ) -> EscrowAccount:
-        body = _build_body(purpose=purpose, currency=currency, agent_id=agent_id, counterparty_org_id=counterparty_org_id)
+        body = _build_body(purpose=purpose, currency=currency, agent_id=agent_id, counterparty_org_uuid=counterparty_org_uuid)
         return _to_dataclass(EscrowAccount, self._post("/escrow/accounts", body))
 
     def list_escrow_accounts(self, page: int = 1) -> PaginatedList:
         return _paginated(self._get("/escrow/accounts", {"page": page}))
 
-    def get_escrow_account(self, account_id: str) -> EscrowAccount:
-        return _to_dataclass(EscrowAccount, self._get(f"/escrow/accounts/{account_id}"))
+    def get_escrow_account(self, account_uuid: str) -> EscrowAccount:
+        return _to_dataclass(EscrowAccount, self._get(f"/escrow/accounts/{account_uuid}"))
 
-    def escrow_deposit(self, account_id: str, amount: float, description: str | None = None, reference_action_id: str | None = None) -> EscrowTransaction:
-        body = _build_body(amount=amount, description=description, reference_action_id=reference_action_id)
-        return _to_dataclass(EscrowTransaction, self._post(f"/escrow/accounts/{account_id}/deposit", body))
+    def escrow_deposit(self, account_uuid: str, amount: float, description: str | None = None, reference_action_uuid: str | None = None) -> EscrowTransaction:
+        body = _build_body(amount=amount, description=description, reference_action_uuid=reference_action_uuid)
+        return _to_dataclass(EscrowTransaction, self._post(f"/escrow/accounts/{account_uuid}/deposit", body))
 
-    def escrow_release(self, account_id: str, amount: float, description: str | None = None, reference_action_id: str | None = None) -> EscrowTransaction:
-        body = _build_body(amount=amount, description=description, reference_action_id=reference_action_id)
-        return _to_dataclass(EscrowTransaction, self._post(f"/escrow/accounts/{account_id}/release", body))
+    def escrow_release(self, account_uuid: str, amount: float, description: str | None = None, reference_action_uuid: str | None = None) -> EscrowTransaction:
+        body = _build_body(amount=amount, description=description, reference_action_uuid=reference_action_uuid)
+        return _to_dataclass(EscrowTransaction, self._post(f"/escrow/accounts/{account_uuid}/release", body))
 
-    def escrow_dispute(self, account_id: str, amount: float, description: str, reference_action_id: str | None = None) -> EscrowTransaction:
-        body = _build_body(amount=amount, description=description, reference_action_id=reference_action_id)
-        return _to_dataclass(EscrowTransaction, self._post(f"/escrow/accounts/{account_id}/dispute", body))
+    def escrow_dispute(self, account_uuid: str, amount: float, description: str, reference_action_uuid: str | None = None) -> EscrowTransaction:
+        body = _build_body(amount=amount, description=description, reference_action_uuid=reference_action_uuid)
+        return _to_dataclass(EscrowTransaction, self._post(f"/escrow/accounts/{account_uuid}/dispute", body))
 
     # ==================== Chat ====================
 
@@ -637,25 +637,25 @@ class Aira:
 
     # ==================== Mutual Notarization ====================
 
-    def request_mutual_sign(self, action_id: str, counterparty_did: str) -> dict:
+    def request_mutual_sign(self, action_uuid: str, counterparty_did: str) -> dict:
         """Initiate a mutual signing request for an action."""
-        return self._post(f"/actions/{action_id}/mutual-sign/request", {"counterparty_did": counterparty_did})
+        return self._post(f"/actions/{action_uuid}/mutual-sign/request", {"counterparty_did": counterparty_did})
 
-    def get_pending_mutual_sign(self, action_id: str) -> dict:
+    def get_pending_mutual_sign(self, action_uuid: str) -> dict:
         """Get the action payload awaiting counterparty signature."""
-        return self._get(f"/actions/{action_id}/mutual-sign/pending")
+        return self._get(f"/actions/{action_uuid}/mutual-sign/pending")
 
-    def complete_mutual_sign(self, action_id: str, did: str, signature: str, signed_payload_hash: str) -> dict:
+    def complete_mutual_sign(self, action_uuid: str, did: str, signature: str, signed_payload_hash: str) -> dict:
         """Submit counterparty signature to complete mutual signing."""
-        return self._post(f"/actions/{action_id}/mutual-sign/complete", {"did": did, "signature": signature, "signed_payload_hash": signed_payload_hash})
+        return self._post(f"/actions/{action_uuid}/mutual-sign/complete", {"did": did, "signature": signature, "signed_payload_hash": signed_payload_hash})
 
-    def get_mutual_sign_receipt(self, action_id: str) -> dict:
+    def get_mutual_sign_receipt(self, action_uuid: str) -> dict:
         """Get the co-signed receipt for a mutually signed action."""
-        return self._get(f"/actions/{action_id}/mutual-sign/receipt")
+        return self._get(f"/actions/{action_uuid}/mutual-sign/receipt")
 
-    def reject_mutual_sign(self, action_id: str, reason: str = "") -> dict:
+    def reject_mutual_sign(self, action_uuid: str, reason: str = "") -> dict:
         """Reject a mutual signing request."""
-        return self._post(f"/actions/{action_id}/mutual-sign/reject", {"reason": reason})
+        return self._post(f"/actions/{action_uuid}/mutual-sign/reject", {"reason": reason})
 
     # ==================== Reputation ====================
 
@@ -667,9 +667,9 @@ class Aira:
         """Get full reputation history for an agent."""
         return self._get(f"/agents/{slug}/reputation/history")
 
-    def attest_reputation(self, slug: str, counterparty_did: str, action_id: str, attestation: str, signature: str) -> dict:
+    def attest_reputation(self, slug: str, counterparty_did: str, action_uuid: str, attestation: str, signature: str) -> dict:
         """Submit a signed attestation of a successful interaction."""
-        return self._post(f"/agents/{slug}/reputation/attest", {"counterparty_did": counterparty_did, "action_id": action_id, "attestation": attestation, "signature": signature})
+        return self._post(f"/agents/{slug}/reputation/attest", {"counterparty_did": counterparty_did, "action_uuid": action_uuid, "attestation": attestation, "signature": signature})
 
     def verify_reputation(self, slug: str) -> dict:
         """Verify a reputation score by returning inputs and score_hash."""
@@ -677,14 +677,14 @@ class Aira:
 
     # ==================== Replay context (F10) ====================
 
-    def get_replay_context(self, action_id: str) -> dict:
+    def get_replay_context(self, action_uuid: str) -> dict:
         """Get all reproducibility metadata stored for an action.
 
         Returns the system_prompt_hash, tool_inputs_hash, model_params,
         execution_env, and other knobs that an external replay tool
         needs to confirm it has the same inputs as the original run.
         """
-        return self._get(f"/actions/{action_id}/replay-context")
+        return self._get(f"/actions/{action_uuid}/replay-context")
 
     # ==================== Compliance bundles ====================
 
@@ -726,23 +726,23 @@ class Aira:
             self._get(f"/compliance/bundles?page={page}&per_page={per_page}")
         )
 
-    def get_compliance_bundle(self, bundle_id: str) -> dict:
+    def get_compliance_bundle(self, bundle_uuid: str) -> dict:
         """Get a compliance bundle's metadata."""
-        return self._get(f"/compliance/bundles/{bundle_id}")
+        return self._get(f"/compliance/bundles/{bundle_uuid}")
 
-    def export_compliance_bundle(self, bundle_id: str) -> dict:
+    def export_compliance_bundle(self, bundle_uuid: str) -> dict:
         """Download the self-contained JSON document for the bundle.
 
         The exported document inlines every receipt's signed payload +
         signature, the JWKS URL, and a verification recipe so an auditor
         can re-verify offline against /.well-known/jwks.json.
         """
-        return self._get(f"/compliance/bundles/{bundle_id}/export")
+        return self._get(f"/compliance/bundles/{bundle_uuid}/export")
 
-    def get_bundle_inclusion_proof(self, bundle_id: str, receipt_id: str) -> dict:
+    def get_bundle_inclusion_proof(self, bundle_uuid: str, receipt_uuid: str) -> dict:
         """Merkle inclusion proof for one receipt within a compliance bundle."""
         return self._get(
-            f"/compliance/bundles/{bundle_id}/inclusion-proof/{receipt_id}"
+            f"/compliance/bundles/{bundle_uuid}/inclusion-proof/{receipt_uuid}"
         )
 
     # ==================== Drift detection ====================
@@ -827,13 +827,13 @@ class Aira:
             self._get(f"/settlements?page={page}&per_page={per_page}")
         )
 
-    def get_settlement(self, settlement_id: str) -> dict:
+    def get_settlement(self, settlement_uuid: str) -> dict:
         """Get a settlement's metadata."""
-        return self._get(f"/settlements/{settlement_id}")
+        return self._get(f"/settlements/{settlement_uuid}")
 
-    def get_settlement_inclusion_proof(self, receipt_id: str) -> dict:
+    def get_settlement_inclusion_proof(self, receipt_uuid: str) -> dict:
         """Get the Merkle inclusion proof for one receipt in its settlement."""
-        return self._get(f"/settlements/inclusion-proof/{receipt_id}")
+        return self._get(f"/settlements/inclusion-proof/{receipt_uuid}")
 
     # ==================== Offline sync ====================
 
@@ -864,7 +864,7 @@ class Aira:
         framework: str,
         period_start: str | None = None,
         period_end: str | None = None,
-        action_id: str | None = None,
+        action_uuid: str | None = None,
         agent_filter: list[str] | None = None,
     ) -> ComplianceReport:
         """Generate a regulatory PDF report.
@@ -872,7 +872,7 @@ class Aira:
         Frameworks:
         - ``eu_ai_act_art12`` — Annex VII technical file. Requires period.
         - ``eu_ai_act_art9`` — risk management register. Requires period.
-        - ``eu_ai_act_art6`` — single-action explanation. Requires action_id.
+        - ``eu_ai_act_art6`` — single-action explanation. Requires action_uuid.
         - ``eu_ai_act_annex_iv`` — full Annex IV technical documentation
           (§§1..9). Requires period. Typical use: annual file for the
           high-risk AI system provider obligations in Article 11.
@@ -881,15 +881,15 @@ class Aira:
             framework=framework,
             period_start=period_start,
             period_end=period_end,
-            action_id=action_id,
+            action_uuid=action_uuid,
             agent_filter=agent_filter,
         )
         return _to_dataclass(ComplianceReport, self._post("/compliance/reports", body))
 
-    def get_compliance_report(self, report_id: str) -> ComplianceReport:
+    def get_compliance_report(self, report_uuid: str) -> ComplianceReport:
         """Get the metadata for a compliance report (no PDF bytes)."""
         return _to_dataclass(
-            ComplianceReport, self._get(f"/compliance/reports/{report_id}")
+            ComplianceReport, self._get(f"/compliance/reports/{report_uuid}")
         )
 
     def list_compliance_reports(
@@ -909,7 +909,7 @@ class Aira:
         )
         return self._get("/compliance/reports", params)
 
-    def download_compliance_report(self, report_id: str) -> bytes:
+    def download_compliance_report(self, report_uuid: str) -> bytes:
         """Download the generated PDF as raw bytes.
 
         Retries on transient 5xx and network errors (3 attempts,
@@ -920,19 +920,19 @@ class Aira:
                 0, "OFFLINE", "Downloads are not available in offline mode"
             )
         resp = _download_with_retry(
-            lambda: self._client.get(f"/compliance/reports/{report_id}/download")
+            lambda: self._client.get(f"/compliance/reports/{report_uuid}/download")
         )
         if resp.status_code != 200:
             _handle_response(resp)  # raises
         return resp.content
 
     def verify_compliance_report(
-        self, report_id: str
+        self, report_uuid: str
     ) -> ComplianceReportVerification:
         """Verify a compliance report's signature and content hash."""
         return _to_dataclass(
             ComplianceReportVerification,
-            self._get(f"/compliance/reports/{report_id}/verify"),
+            self._get(f"/compliance/reports/{report_uuid}/verify"),
         )
 
     # ==================== Output content-scan policy ====================
@@ -976,7 +976,7 @@ class Aira:
             OutputPolicy, self._patch("/output-policies", body)
         )
 
-    def get_action_explanation(self, action_id: str) -> ActionExplanation:
+    def get_action_explanation(self, action_uuid: str) -> ActionExplanation:
         """Article 6 right-to-explanation for a single action.
 
         The returned object carries a signed ``envelope`` — verify it
@@ -984,7 +984,7 @@ class Aira:
         on the verify endpoint, so any regulator or auditor can
         reproduce the check).
         """
-        data = self._get(f"/actions/{action_id}/explanation")
+        data = self._get(f"/actions/{action_uuid}/explanation")
         # Wire format uses the underscore-prefixed key ``_envelope`` to
         # stay aligned with the signed canonical JSON; the dataclass
         # exposes it as ``envelope`` because Python conventions.
@@ -1010,7 +1010,7 @@ class Aira:
         )
         return _to_dataclass(ExplanationVerification, data)
 
-    def download_action_explanation_pdf(self, action_id: str) -> bytes:
+    def download_action_explanation_pdf(self, action_uuid: str) -> bytes:
         """Download the Article 6 explanation as a PDF.
 
         Retries on transient 5xx and network errors (3 attempts,
@@ -1021,7 +1021,7 @@ class Aira:
                 0, "OFFLINE", "Downloads are not available in offline mode"
             )
         resp = _download_with_retry(
-            lambda: self._client.get(f"/actions/{action_id}/explanation/pdf")
+            lambda: self._client.get(f"/actions/{action_uuid}/explanation/pdf")
         )
         if resp.status_code != 200:
             _handle_response(resp)
@@ -1040,7 +1040,7 @@ class AiraSession:
     Every ``authorize()`` call on the session inherits the defaults
     (``agent_id``, ``model_id``, etc.) so you don't have to repeat them.
     ``notarize()`` passes through to the underlying client unchanged since
-    it only takes an ``action_id``.
+    it only takes an ``action_uuid``.
     """
 
     def __init__(self, client: Aira, agent_id: str, **defaults: Any) -> None:
@@ -1053,12 +1053,12 @@ class AiraSession:
 
     def notarize(
         self,
-        action_id: str,
+        action_uuid: str,
         outcome: str = "completed",
         outcome_details: str | None = None,
     ) -> ActionReceipt:
         return self._client.notarize(
-            action_id=action_id, outcome=outcome, outcome_details=outcome_details
+            action_uuid=action_uuid, outcome=outcome, outcome_details=outcome_details
         )
 
     def __enter__(self) -> AiraSession:
@@ -1146,7 +1146,7 @@ class AsyncAira:
         instruction_hash: str | None = None,
         model_id: str | None = None,
         model_version: str | None = None,
-        parent_action_id: str | None = None,
+        parent_action_uuid: str | None = None,
         endpoint_url: str | None = None,
         store_details: bool = False,
         idempotency_key: str | None = None,
@@ -1170,7 +1170,7 @@ class AsyncAira:
             instruction_hash=instruction_hash,
             model_id=model_id,
             model_version=model_version,
-            parent_action_id=parent_action_id,
+            parent_action_uuid=parent_action_uuid,
             endpoint_url=endpoint_url,
             idempotency_key=idempotency_key,
             require_approval=require_approval or None,
@@ -1186,7 +1186,7 @@ class AsyncAira:
 
     async def notarize(
         self,
-        action_id: str,
+        action_uuid: str,
         outcome: str = "completed",
         outcome_details: str | None = None,
     ) -> ActionReceipt:
@@ -1196,11 +1196,11 @@ class AsyncAira:
         """
         body = _build_body(outcome=outcome, outcome_details=outcome_details)
         return _to_dataclass(
-            ActionReceipt, await self._post(f"/actions/{action_id}/notarize", body)
+            ActionReceipt, await self._post(f"/actions/{action_uuid}/notarize", body)
         )
 
-    async def get_action(self, action_id: str) -> ActionDetail:
-        return _to_dataclass(ActionDetail, await self._get(f"/actions/{action_id}"))
+    async def get_action(self, action_uuid: str) -> ActionDetail:
+        return _to_dataclass(ActionDetail, await self._get(f"/actions/{action_uuid}"))
 
     async def list_actions(
         self, page: int = 1, per_page: int = 20,
@@ -1210,23 +1210,23 @@ class AsyncAira:
         params = _build_body(page=page, per_page=per_page, action_type=action_type, agent_id=agent_id, status=status)
         return _paginated(await self._get("/actions", params))
 
-    async def cosign_action(self, action_id: str) -> CosignResult:
+    async def cosign_action(self, action_uuid: str) -> CosignResult:
         """Human co-signature on an authorized or notarized action."""
         return _to_dataclass(
-            CosignResult, await self._post(f"/actions/{action_id}/cosign", {})
+            CosignResult, await self._post(f"/actions/{action_uuid}/cosign", {})
         )
 
-    async def set_legal_hold(self, action_id: str) -> dict:
-        return await self._post(f"/actions/{action_id}/hold", {})
+    async def set_legal_hold(self, action_uuid: str) -> dict:
+        return await self._post(f"/actions/{action_uuid}/hold", {})
 
-    async def release_legal_hold(self, action_id: str) -> dict:
-        return await self._delete(f"/actions/{action_id}/hold")
+    async def release_legal_hold(self, action_uuid: str) -> dict:
+        return await self._delete(f"/actions/{action_uuid}/hold")
 
-    async def get_action_chain(self, action_id: str) -> list[dict]:
-        return (await self._get(f"/actions/{action_id}/chain")).get("chain", [])
+    async def get_action_chain(self, action_uuid: str) -> list[dict]:
+        return (await self._get(f"/actions/{action_uuid}/chain")).get("chain", [])
 
-    async def verify_action(self, action_id: str) -> VerifyResult:
-        data = _handle_response(await self._public_client.get(f"/verify/action/{action_id}"))
+    async def verify_action(self, action_uuid: str) -> VerifyResult:
+        data = _handle_response(await self._public_client.get(f"/verify/action/{action_uuid}"))
         return _to_dataclass(VerifyResult, data)
 
     # ==================== Agents ====================
@@ -1269,8 +1269,8 @@ class AsyncAira:
     async def decommission_agent(self, slug: str) -> AgentDetail:
         return _to_dataclass(AgentDetail, await self._post(f"/agents/{slug}/decommission", {}))
 
-    async def transfer_agent(self, slug: str, to_org_id: str, reason: str | None = None) -> dict:
-        return await self._post(f"/agents/{slug}/transfer", _build_body(to_org_id=to_org_id, reason=reason))
+    async def transfer_agent(self, slug: str, to_org_uuid: str, reason: str | None = None) -> dict:
+        return await self._post(f"/agents/{slug}/transfer", _build_body(to_org_uuid=to_org_uuid, reason=reason))
 
     async def get_agent_actions(self, slug: str, page: int = 1) -> PaginatedList:
         return _paginated(await self._get(f"/agents/{slug}/actions", {"page": page}))
@@ -1291,33 +1291,33 @@ class AsyncAira:
 
     # ==================== Receipts ====================
 
-    async def get_receipt(self, receipt_id: str) -> dict:
-        return await self._get(f"/receipts/{receipt_id}")
+    async def get_receipt(self, receipt_uuid: str) -> dict:
+        return await self._get(f"/receipts/{receipt_uuid}")
 
-    async def export_receipt(self, receipt_id: str, format: str = "json") -> dict:
-        return await self._get(f"/receipts/{receipt_id}/export", {"format": format})
+    async def export_receipt(self, receipt_uuid: str, format: str = "json") -> dict:
+        return await self._get(f"/receipts/{receipt_uuid}/export", {"format": format})
 
     # ==================== Evidence ====================
 
     async def create_evidence_package(
-        self, title: str, action_ids: list[str], description: str | None = None,
+        self, title: str, action_uuids: list[str], description: str | None = None,
         agent_slugs: list[str] | None = None,
     ) -> EvidencePackage:
-        body = _build_body(title=title, action_ids=action_ids, description=description, agent_slugs=agent_slugs)
+        body = _build_body(title=title, action_uuids=action_uuids, description=description, agent_slugs=agent_slugs)
         return _to_dataclass(EvidencePackage, await self._post("/evidence/packages", body))
 
     async def list_evidence_packages(self, page: int = 1) -> PaginatedList:
         return _paginated(await self._get("/evidence/packages", {"page": page}))
 
-    async def get_evidence_package(self, package_id: str) -> EvidencePackage:
-        return _to_dataclass(EvidencePackage, await self._get(f"/evidence/packages/{package_id}"))
+    async def get_evidence_package(self, package_uuid: str) -> EvidencePackage:
+        return _to_dataclass(EvidencePackage, await self._get(f"/evidence/packages/{package_uuid}"))
 
     async def time_travel(self, point_in_time: str, agent_slug: str | None = None, action_type: str | None = None) -> dict:
         """Query actions as they existed at a point in time."""
         return await self._post("/evidence/time-travel", _build_body(point_in_time=point_in_time, agent_slug=agent_slug, action_type=action_type))
 
-    async def liability_chain(self, action_id: str, max_depth: int = 10) -> list[dict]:
-        data = await self._get(f"/evidence/liability-chain/{action_id}", {"max_depth": max_depth})
+    async def liability_chain(self, action_uuid: str, max_depth: int = 10) -> list[dict]:
+        data = await self._get(f"/evidence/liability-chain/{action_uuid}", {"max_depth": max_depth})
         return data.get("chain", [])
 
     # ==================== Estate ====================
@@ -1357,28 +1357,28 @@ class AsyncAira:
 
     async def create_escrow_account(
         self, purpose: str | None = None, currency: str = "EUR",
-        agent_id: str | None = None, counterparty_org_id: str | None = None,
+        agent_id: str | None = None, counterparty_org_uuid: str | None = None,
     ) -> EscrowAccount:
-        body = _build_body(purpose=purpose, currency=currency, agent_id=agent_id, counterparty_org_id=counterparty_org_id)
+        body = _build_body(purpose=purpose, currency=currency, agent_id=agent_id, counterparty_org_uuid=counterparty_org_uuid)
         return _to_dataclass(EscrowAccount, await self._post("/escrow/accounts", body))
 
     async def list_escrow_accounts(self, page: int = 1) -> PaginatedList:
         return _paginated(await self._get("/escrow/accounts", {"page": page}))
 
-    async def get_escrow_account(self, account_id: str) -> EscrowAccount:
-        return _to_dataclass(EscrowAccount, await self._get(f"/escrow/accounts/{account_id}"))
+    async def get_escrow_account(self, account_uuid: str) -> EscrowAccount:
+        return _to_dataclass(EscrowAccount, await self._get(f"/escrow/accounts/{account_uuid}"))
 
-    async def escrow_deposit(self, account_id: str, amount: float, description: str | None = None, reference_action_id: str | None = None) -> EscrowTransaction:
-        body = _build_body(amount=amount, description=description, reference_action_id=reference_action_id)
-        return _to_dataclass(EscrowTransaction, await self._post(f"/escrow/accounts/{account_id}/deposit", body))
+    async def escrow_deposit(self, account_uuid: str, amount: float, description: str | None = None, reference_action_uuid: str | None = None) -> EscrowTransaction:
+        body = _build_body(amount=amount, description=description, reference_action_uuid=reference_action_uuid)
+        return _to_dataclass(EscrowTransaction, await self._post(f"/escrow/accounts/{account_uuid}/deposit", body))
 
-    async def escrow_release(self, account_id: str, amount: float, description: str | None = None, reference_action_id: str | None = None) -> EscrowTransaction:
-        body = _build_body(amount=amount, description=description, reference_action_id=reference_action_id)
-        return _to_dataclass(EscrowTransaction, await self._post(f"/escrow/accounts/{account_id}/release", body))
+    async def escrow_release(self, account_uuid: str, amount: float, description: str | None = None, reference_action_uuid: str | None = None) -> EscrowTransaction:
+        body = _build_body(amount=amount, description=description, reference_action_uuid=reference_action_uuid)
+        return _to_dataclass(EscrowTransaction, await self._post(f"/escrow/accounts/{account_uuid}/release", body))
 
-    async def escrow_dispute(self, account_id: str, amount: float, description: str, reference_action_id: str | None = None) -> EscrowTransaction:
-        body = _build_body(amount=amount, description=description, reference_action_id=reference_action_id)
-        return _to_dataclass(EscrowTransaction, await self._post(f"/escrow/accounts/{account_id}/dispute", body))
+    async def escrow_dispute(self, account_uuid: str, amount: float, description: str, reference_action_uuid: str | None = None) -> EscrowTransaction:
+        body = _build_body(amount=amount, description=description, reference_action_uuid=reference_action_uuid)
+        return _to_dataclass(EscrowTransaction, await self._post(f"/escrow/accounts/{account_uuid}/dispute", body))
 
     # ==================== Chat ====================
 
@@ -1419,25 +1419,25 @@ class AsyncAira:
 
     # ==================== Mutual Notarization ====================
 
-    async def request_mutual_sign(self, action_id: str, counterparty_did: str) -> dict:
+    async def request_mutual_sign(self, action_uuid: str, counterparty_did: str) -> dict:
         """Initiate a mutual signing request for an action."""
-        return await self._post(f"/actions/{action_id}/mutual-sign/request", {"counterparty_did": counterparty_did})
+        return await self._post(f"/actions/{action_uuid}/mutual-sign/request", {"counterparty_did": counterparty_did})
 
-    async def get_pending_mutual_sign(self, action_id: str) -> dict:
+    async def get_pending_mutual_sign(self, action_uuid: str) -> dict:
         """Get the action payload awaiting counterparty signature."""
-        return await self._get(f"/actions/{action_id}/mutual-sign/pending")
+        return await self._get(f"/actions/{action_uuid}/mutual-sign/pending")
 
-    async def complete_mutual_sign(self, action_id: str, did: str, signature: str, signed_payload_hash: str) -> dict:
+    async def complete_mutual_sign(self, action_uuid: str, did: str, signature: str, signed_payload_hash: str) -> dict:
         """Submit counterparty signature to complete mutual signing."""
-        return await self._post(f"/actions/{action_id}/mutual-sign/complete", {"did": did, "signature": signature, "signed_payload_hash": signed_payload_hash})
+        return await self._post(f"/actions/{action_uuid}/mutual-sign/complete", {"did": did, "signature": signature, "signed_payload_hash": signed_payload_hash})
 
-    async def get_mutual_sign_receipt(self, action_id: str) -> dict:
+    async def get_mutual_sign_receipt(self, action_uuid: str) -> dict:
         """Get the co-signed receipt for a mutually signed action."""
-        return await self._get(f"/actions/{action_id}/mutual-sign/receipt")
+        return await self._get(f"/actions/{action_uuid}/mutual-sign/receipt")
 
-    async def reject_mutual_sign(self, action_id: str, reason: str = "") -> dict:
+    async def reject_mutual_sign(self, action_uuid: str, reason: str = "") -> dict:
         """Reject a mutual signing request."""
-        return await self._post(f"/actions/{action_id}/mutual-sign/reject", {"reason": reason})
+        return await self._post(f"/actions/{action_uuid}/mutual-sign/reject", {"reason": reason})
 
     # ==================== Reputation ====================
 
@@ -1449,9 +1449,9 @@ class AsyncAira:
         """Get full reputation history for an agent."""
         return await self._get(f"/agents/{slug}/reputation/history")
 
-    async def attest_reputation(self, slug: str, counterparty_did: str, action_id: str, attestation: str, signature: str) -> dict:
+    async def attest_reputation(self, slug: str, counterparty_did: str, action_uuid: str, attestation: str, signature: str) -> dict:
         """Submit a signed attestation of a successful interaction."""
-        return await self._post(f"/agents/{slug}/reputation/attest", {"counterparty_did": counterparty_did, "action_id": action_id, "attestation": attestation, "signature": signature})
+        return await self._post(f"/agents/{slug}/reputation/attest", {"counterparty_did": counterparty_did, "action_uuid": action_uuid, "attestation": attestation, "signature": signature})
 
     async def verify_reputation(self, slug: str) -> dict:
         """Verify a reputation score by returning inputs and score_hash."""
@@ -1459,9 +1459,9 @@ class AsyncAira:
 
     # ==================== Replay context (F10) ====================
 
-    async def get_replay_context(self, action_id: str) -> dict:
+    async def get_replay_context(self, action_uuid: str) -> dict:
         """Async mirror of :meth:`Aira.get_replay_context`."""
-        return await self._get(f"/actions/{action_id}/replay-context")
+        return await self._get(f"/actions/{action_uuid}/replay-context")
 
     # ==================== Compliance bundles ====================
 
@@ -1490,15 +1490,15 @@ class AsyncAira:
             await self._get(f"/compliance/bundles?page={page}&per_page={per_page}")
         )
 
-    async def get_compliance_bundle(self, bundle_id: str) -> dict:
-        return await self._get(f"/compliance/bundles/{bundle_id}")
+    async def get_compliance_bundle(self, bundle_uuid: str) -> dict:
+        return await self._get(f"/compliance/bundles/{bundle_uuid}")
 
-    async def export_compliance_bundle(self, bundle_id: str) -> dict:
-        return await self._get(f"/compliance/bundles/{bundle_id}/export")
+    async def export_compliance_bundle(self, bundle_uuid: str) -> dict:
+        return await self._get(f"/compliance/bundles/{bundle_uuid}/export")
 
-    async def get_bundle_inclusion_proof(self, bundle_id: str, receipt_id: str) -> dict:
+    async def get_bundle_inclusion_proof(self, bundle_uuid: str, receipt_uuid: str) -> dict:
         return await self._get(
-            f"/compliance/bundles/{bundle_id}/inclusion-proof/{receipt_id}"
+            f"/compliance/bundles/{bundle_uuid}/inclusion-proof/{receipt_uuid}"
         )
 
     # ==================== Drift detection ====================
@@ -1566,11 +1566,11 @@ class AsyncAira:
             await self._get(f"/settlements?page={page}&per_page={per_page}")
         )
 
-    async def get_settlement(self, settlement_id: str) -> dict:
-        return await self._get(f"/settlements/{settlement_id}")
+    async def get_settlement(self, settlement_uuid: str) -> dict:
+        return await self._get(f"/settlements/{settlement_uuid}")
 
-    async def get_settlement_inclusion_proof(self, receipt_id: str) -> dict:
-        return await self._get(f"/settlements/inclusion-proof/{receipt_id}")
+    async def get_settlement_inclusion_proof(self, receipt_uuid: str) -> dict:
+        return await self._get(f"/settlements/inclusion-proof/{receipt_uuid}")
 
     # ==================== Offline sync ====================
 
@@ -1600,7 +1600,7 @@ class AsyncAira:
         framework: str,
         period_start: str | None = None,
         period_end: str | None = None,
-        action_id: str | None = None,
+        action_uuid: str | None = None,
         agent_filter: list[str] | None = None,
     ) -> ComplianceReport:
         """Generate a regulatory PDF report.
@@ -1613,16 +1613,16 @@ class AsyncAira:
             framework=framework,
             period_start=period_start,
             period_end=period_end,
-            action_id=action_id,
+            action_uuid=action_uuid,
             agent_filter=agent_filter,
         )
         return _to_dataclass(
             ComplianceReport, await self._post("/compliance/reports", body)
         )
 
-    async def get_compliance_report(self, report_id: str) -> ComplianceReport:
+    async def get_compliance_report(self, report_uuid: str) -> ComplianceReport:
         return _to_dataclass(
-            ComplianceReport, await self._get(f"/compliance/reports/{report_id}")
+            ComplianceReport, await self._get(f"/compliance/reports/{report_uuid}")
         )
 
     async def list_compliance_reports(
@@ -1637,25 +1637,25 @@ class AsyncAira:
         )
         return await self._get("/compliance/reports", params)
 
-    async def download_compliance_report(self, report_id: str) -> bytes:
+    async def download_compliance_report(self, report_uuid: str) -> bytes:
         """Download the generated PDF as raw bytes (with retries)."""
         if self._queue is not None:
             raise AiraError(
                 0, "OFFLINE", "Downloads are not available in offline mode"
             )
         resp = await _download_with_retry_async(
-            lambda: self._client.get(f"/compliance/reports/{report_id}/download")
+            lambda: self._client.get(f"/compliance/reports/{report_uuid}/download")
         )
         if resp.status_code != 200:
             _handle_response(resp)
         return resp.content
 
     async def verify_compliance_report(
-        self, report_id: str
+        self, report_uuid: str
     ) -> ComplianceReportVerification:
         return _to_dataclass(
             ComplianceReportVerification,
-            await self._get(f"/compliance/reports/{report_id}/verify"),
+            await self._get(f"/compliance/reports/{report_uuid}/verify"),
         )
 
     async def get_output_policy(self) -> OutputPolicy:
@@ -1683,8 +1683,8 @@ class AsyncAira:
             OutputPolicy, await self._patch("/output-policies", body)
         )
 
-    async def get_action_explanation(self, action_id: str) -> ActionExplanation:
-        data = await self._get(f"/actions/{action_id}/explanation")
+    async def get_action_explanation(self, action_uuid: str) -> ActionExplanation:
+        data = await self._get(f"/actions/{action_uuid}/explanation")
         if "_envelope" in data:
             data["envelope"] = data.pop("_envelope")
         return _to_dataclass(ActionExplanation, data)
@@ -1701,14 +1701,14 @@ class AsyncAira:
         )
         return _to_dataclass(ExplanationVerification, data)
 
-    async def download_action_explanation_pdf(self, action_id: str) -> bytes:
+    async def download_action_explanation_pdf(self, action_uuid: str) -> bytes:
         """Download the Article 6 explanation PDF (with retries)."""
         if self._queue is not None:
             raise AiraError(
                 0, "OFFLINE", "Downloads are not available in offline mode"
             )
         resp = await _download_with_retry_async(
-            lambda: self._client.get(f"/actions/{action_id}/explanation/pdf")
+            lambda: self._client.get(f"/actions/{action_uuid}/explanation/pdf")
         )
         if resp.status_code != 200:
             _handle_response(resp)
@@ -1736,12 +1736,12 @@ class AsyncAiraSession:
 
     async def notarize(
         self,
-        action_id: str,
+        action_uuid: str,
         outcome: str = "completed",
         outcome_details: str | None = None,
     ) -> ActionReceipt:
         return await self._client.notarize(
-            action_id=action_id, outcome=outcome, outcome_details=outcome_details
+            action_uuid=action_uuid, outcome=outcome, outcome_details=outcome_details
         )
 
     async def __aenter__(self) -> AsyncAiraSession:

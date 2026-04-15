@@ -13,7 +13,7 @@ def _resp(data, status: int = 200) -> httpx.Response:
 
 
 PENDING_AUTH = {
-    "action_id": "act-1",
+    "action_uuid": "act-1",
     "status": "pending_approval",
     "created_at": "2026-04-10T00:00:00Z",
     "request_id": "req-1",
@@ -21,7 +21,7 @@ PENDING_AUTH = {
 }
 
 AUTHORIZED = {
-    "action_id": "act-1",
+    "action_uuid": "act-1",
     "status": "authorized",
     "created_at": "2026-04-10T00:00:00Z",
     "request_id": "req-1",
@@ -70,7 +70,7 @@ class TestRequireApproval:
             )
         assert isinstance(a, Authorization)
         assert a.status == "pending_approval"
-        assert a.action_id == "act-1"
+        assert a.action_uuid == "act-1"
 
     def test_authorize_with_multiple_approvers(self):
         with patch.object(self.c._client, "post", return_value=_resp(PENDING_AUTH, 201)) as m:
@@ -117,4 +117,4 @@ class TestAsyncRequireApproval:
                     require_approval=True,
                 )
                 assert a.status == "pending_approval"
-                assert a.action_id == "act-1"
+                assert a.action_uuid == "act-1"

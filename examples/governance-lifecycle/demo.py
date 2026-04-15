@@ -41,7 +41,7 @@ def main() -> None:
         agent_id=AGENT_ID,
         context={"amount_eur": 75_000, "vendor": "vendor-x"},
     )
-    print(f"   action_id={auth.action_id}  status={auth.status}")
+    print(f"   action_uuid={auth.action_uuid}  status={auth.status}")
     if auth.status != "authorized":
         print("   policy held the action — exiting demo.")
         return
@@ -49,11 +49,11 @@ def main() -> None:
     # ── 2. Notarize the outcome ──────────────────────────────────────
     print("\n2. notarize(completed)")
     receipt = aira.notarize(
-        action_id=auth.action_id,
+        action_uuid=auth.action_uuid,
         outcome="completed",
         outcome_details="Transferred via Stripe Treasury #ts_01HX...",
     )
-    print(f"   receipt_id={receipt.id}")
+    print(f"   receipt_uuid={receipt.id}")
     print(f"   signature={receipt.signature[:32]}...")
     print(f"   signing_key={receipt.signing_key_id}")
 
@@ -64,7 +64,7 @@ def main() -> None:
         expected_distribution={"wire_transfer": 0.7, "ach_transfer": 0.25, "refund": 0.05},
         expected_actions_per_day=120,
     )
-    print(f"   baseline_id={baseline['id']}  active={baseline['is_active']}")
+    print(f"   baseline_uuid={baseline['id']}  active={baseline['is_active']}")
 
     # ── 4. Drift check ───────────────────────────────────────────────
     print("\n4. run_drift_check(lookback_hours=1)")
@@ -88,7 +88,7 @@ def main() -> None:
         title=f"ISO 42001 evidence · {run_tag}",
         idempotency_key=bundle_key,
     )
-    print(f"   bundle_id={bundle['id']}")
+    print(f"   bundle_uuid={bundle['id']}")
     print(f"   merkle_root={bundle['merkle_root']}")
     print(f"   receipt_count={bundle['receipt_count']}")
     print(f"   (retrying with idempotency_key={bundle_key!r} returns the same bundle)")
@@ -102,7 +102,7 @@ def main() -> None:
         idempotency_key=bundle_key,
     )
     assert replay["id"] == bundle["id"], "replay produced a different bundle!"
-    print("   replay check: same bundle_id ✓")
+    print("   replay check: same bundle_uuid ✓")
 
     # ── 6. (Admin) seal a settlement ─────────────────────────────────
     print("\n6. create_settlement()  (admin-only)")
@@ -111,7 +111,7 @@ def main() -> None:
         if settlement is None:
             print("   no unsettled receipts (already sealed by a scheduled run)")
         else:
-            print(f"   settlement_id={settlement['id']}")
+            print(f"   settlement_uuid={settlement['id']}")
             print(f"   merkle_root={settlement['merkle_root']}")
             print(f"   receipt_count={settlement['receipt_count']}")
     except Exception as exc:
