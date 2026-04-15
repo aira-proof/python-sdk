@@ -22,8 +22,11 @@ from aira.types import (
     CosignResult,
     EscrowAccount,
     EscrowTransaction,
+    DoraIncident,
+    DoraTest,
     EvidencePackage,
     ExplanationVerification,
+    IctThirdParty,
     OutputPolicy,
     PaginatedList,
     VerifyResult,
@@ -976,6 +979,199 @@ class Aira:
             OutputPolicy, self._patch("/output-policies", body)
         )
 
+    # ==================== DORA (EU 2022/2554) ====================
+
+    def create_dora_incident(
+        self,
+        *,
+        title: str,
+        description: str,
+        detected_at: str,
+        affected_services: list[str] | None = None,
+        clients_affected_count: int = 0,
+        geographic_scope: list[str] | None = None,
+        related_action_uuids: list[str] | None = None,
+    ) -> DoraIncident:
+        """Open a new DORA ICT incident (Article 17). Lifecycle starts
+        in ``detected``; call :meth:`classify_dora_incident` next."""
+        body = _build_body(
+            title=title, description=description, detected_at=detected_at,
+            affected_services=affected_services,
+            clients_affected_count=clients_affected_count,
+            geographic_scope=geographic_scope,
+            related_action_uuids=related_action_uuids,
+        )
+        return _to_dataclass(DoraIncident, self._post("/dora/incidents", body))
+
+    def list_dora_incidents(
+        self,
+        *,
+        status: str | None = None,
+        severity: str | None = None,
+        is_major: bool | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict:
+        """List incidents with optional filters."""
+        params = _build_body(
+            status=status, severity=severity, is_major=is_major,
+            limit=limit, offset=offset,
+        )
+        return self._get("/dora/incidents", params)
+
+    def get_dora_incident(self, incident_uuid: str) -> DoraIncident:
+        return _to_dataclass(
+            DoraIncident, self._get(f"/dora/incidents/{incident_uuid}")
+        )
+
+    def classify_dora_incident(
+        self,
+        incident_uuid: str,
+        *,
+        severity: str,
+        category: str,
+        is_major: bool | None = None,
+        root_cause_summary: str | None = None,
+        root_cause_classification: str | None = None,
+        third_party_uuid: str | None = None,
+    ) -> DoraIncident:
+        """Classify a detected incident (Article 18). When ``severity`` is
+        ``critical`` or ``high`` and ``is_major`` isn't supplied, the
+        incident is marked major automatically (the Article 19 reporting
+        obligation kicks in)."""
+        body = _build_body(
+            severity=severity, category=category, is_major=is_major,
+            root_cause_summary=root_cause_summary,
+            root_cause_classification=root_cause_classification,
+            third_party_uuid=third_party_uuid,
+        )
+        return _to_dataclass(
+            DoraIncident,
+            self._put(f"/dora/incidents/{incident_uuid}/classify", body),
+        )
+
+    def resolve_dora_incident(
+        self,
+        incident_uuid: str,
+        *,
+        resolution_summary: str,
+        lessons_learned: str | None = None,
+        resolved_at: str | None = None,
+    ) -> DoraIncident:
+        """Mark an incident resolved + record post-mortem fields."""
+        body = _build_body(
+            resolution_summary=resolution_summary,
+            lessons_learned=lessons_learned, resolved_at=resolved_at,
+        )
+        return _to_dataclass(
+            DoraIncident,
+            self._put(f"/dora/incidents/{incident_uuid}/resolve", body),
+        )
+
+    def download_dora_incident_report(self, incident_uuid: str) -> bytes:
+        """Generate (if needed) and download the major-incident PDF
+        signed for ESA submission. Returns raw PDF bytes."""
+        if self._queue is not None:
+            raise AiraError(0, "OFFLINE", "Downloads not available offline")
+        resp = _download_with_retry(
+            lambda: self._client.get(f"/dora/incidents/{incident_uuid}/report")
+        )
+        if resp.status_code != 200:
+            _handle_response(resp)
+        return resp.content
+
+    def create_ict_third_party(
+        self,
+        *,
+        vendor_name: str,
+        service_description: str,
+        service_type: str,
+        criticality: str,
+        contract_start_date: str | None = None,
+        contract_end_date: str | None = None,
+        exit_strategy_summary: str | None = None,
+        subcontractors: list[str] | None = None,
+        data_categories: list[str] | None = None,
+        jurisdiction: str | None = None,
+    ) -> IctThirdParty:
+        """Add a vendor to the ICT third-party register (Article 28)."""
+        body = _build_body(
+            vendor_name=vendor_name, service_description=service_description,
+            service_type=service_type, criticality=criticality,
+            contract_start_date=contract_start_date,
+            contract_end_date=contract_end_date,
+            exit_strategy_summary=exit_strategy_summary,
+            subcontractors=subcontractors, data_categories=data_categories,
+            jurisdiction=jurisdiction,
+        )
+        return _to_dataclass(
+            IctThirdParty, self._post("/dora/third-parties", body)
+        )
+
+    def list_ict_third_parties(
+        self,
+        *,
+        criticality: str | None = None,
+        is_active: bool | None = True,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> dict:
+        params = _build_body(
+            criticality=criticality, is_active=is_active,
+            limit=limit, offset=offset,
+        )
+        return self._get("/dora/third-parties", params)
+
+    def get_ict_third_party(self, third_party_uuid: str) -> IctThirdParty:
+        return _to_dataclass(
+            IctThirdParty,
+            self._get(f"/dora/third-parties/{third_party_uuid}"),
+        )
+
+    def update_ict_third_party(
+        self, third_party_uuid: str, **fields: Any,
+    ) -> IctThirdParty:
+        """PATCH semantics — only the fields supplied are changed."""
+        return _to_dataclass(
+            IctThirdParty,
+            self._put(f"/dora/third-parties/{third_party_uuid}", fields),
+        )
+
+    def create_dora_test(
+        self,
+        *,
+        test_type: str,
+        title: str,
+        scope: str,
+        conducted_at: str,
+        conducted_by: str,
+        status: str,
+        findings_summary: str | None = None,
+        remediation_plan: str | None = None,
+        remediation_due_at: str | None = None,
+    ) -> DoraTest:
+        """Log a DORA resilience test (Articles 24-27)."""
+        body = _build_body(
+            test_type=test_type, title=title, scope=scope,
+            conducted_at=conducted_at, conducted_by=conducted_by,
+            status=status, findings_summary=findings_summary,
+            remediation_plan=remediation_plan,
+            remediation_due_at=remediation_due_at,
+        )
+        return _to_dataclass(DoraTest, self._post("/dora/tests", body))
+
+    def list_dora_tests(
+        self,
+        *,
+        test_type: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> dict:
+        params = _build_body(
+            test_type=test_type, limit=limit, offset=offset,
+        )
+        return self._get("/dora/tests", params)
+
     def get_action_explanation(self, action_uuid: str) -> ActionExplanation:
         """Article 6 right-to-explanation for a single action.
 
@@ -1682,6 +1878,157 @@ class AsyncAira:
         return _to_dataclass(
             OutputPolicy, await self._patch("/output-policies", body)
         )
+
+    # ==================== DORA (EU 2022/2554) ====================
+
+    async def create_dora_incident(
+        self, *, title: str, description: str, detected_at: str,
+        affected_services: list[str] | None = None,
+        clients_affected_count: int = 0,
+        geographic_scope: list[str] | None = None,
+        related_action_uuids: list[str] | None = None,
+    ) -> DoraIncident:
+        body = _build_body(
+            title=title, description=description, detected_at=detected_at,
+            affected_services=affected_services,
+            clients_affected_count=clients_affected_count,
+            geographic_scope=geographic_scope,
+            related_action_uuids=related_action_uuids,
+        )
+        return _to_dataclass(
+            DoraIncident, await self._post("/dora/incidents", body)
+        )
+
+    async def list_dora_incidents(
+        self, *, status: str | None = None, severity: str | None = None,
+        is_major: bool | None = None, limit: int = 50, offset: int = 0,
+    ) -> dict:
+        params = _build_body(
+            status=status, severity=severity, is_major=is_major,
+            limit=limit, offset=offset,
+        )
+        return await self._get("/dora/incidents", params)
+
+    async def get_dora_incident(self, incident_uuid: str) -> DoraIncident:
+        return _to_dataclass(
+            DoraIncident, await self._get(f"/dora/incidents/{incident_uuid}")
+        )
+
+    async def classify_dora_incident(
+        self, incident_uuid: str, *, severity: str, category: str,
+        is_major: bool | None = None, root_cause_summary: str | None = None,
+        root_cause_classification: str | None = None,
+        third_party_uuid: str | None = None,
+    ) -> DoraIncident:
+        body = _build_body(
+            severity=severity, category=category, is_major=is_major,
+            root_cause_summary=root_cause_summary,
+            root_cause_classification=root_cause_classification,
+            third_party_uuid=third_party_uuid,
+        )
+        return _to_dataclass(
+            DoraIncident,
+            await self._put(f"/dora/incidents/{incident_uuid}/classify", body),
+        )
+
+    async def resolve_dora_incident(
+        self, incident_uuid: str, *, resolution_summary: str,
+        lessons_learned: str | None = None, resolved_at: str | None = None,
+    ) -> DoraIncident:
+        body = _build_body(
+            resolution_summary=resolution_summary,
+            lessons_learned=lessons_learned, resolved_at=resolved_at,
+        )
+        return _to_dataclass(
+            DoraIncident,
+            await self._put(f"/dora/incidents/{incident_uuid}/resolve", body),
+        )
+
+    async def download_dora_incident_report(
+        self, incident_uuid: str,
+    ) -> bytes:
+        if self._queue is not None:
+            raise AiraError(0, "OFFLINE", "Downloads not available offline")
+        resp = await _download_with_retry_async(
+            lambda: self._client.get(f"/dora/incidents/{incident_uuid}/report")
+        )
+        if resp.status_code != 200:
+            _handle_response(resp)
+        return resp.content
+
+    async def create_ict_third_party(
+        self, *, vendor_name: str, service_description: str,
+        service_type: str, criticality: str,
+        contract_start_date: str | None = None,
+        contract_end_date: str | None = None,
+        exit_strategy_summary: str | None = None,
+        subcontractors: list[str] | None = None,
+        data_categories: list[str] | None = None,
+        jurisdiction: str | None = None,
+    ) -> IctThirdParty:
+        body = _build_body(
+            vendor_name=vendor_name, service_description=service_description,
+            service_type=service_type, criticality=criticality,
+            contract_start_date=contract_start_date,
+            contract_end_date=contract_end_date,
+            exit_strategy_summary=exit_strategy_summary,
+            subcontractors=subcontractors, data_categories=data_categories,
+            jurisdiction=jurisdiction,
+        )
+        return _to_dataclass(
+            IctThirdParty, await self._post("/dora/third-parties", body)
+        )
+
+    async def list_ict_third_parties(
+        self, *, criticality: str | None = None, is_active: bool | None = True,
+        limit: int = 100, offset: int = 0,
+    ) -> dict:
+        params = _build_body(
+            criticality=criticality, is_active=is_active,
+            limit=limit, offset=offset,
+        )
+        return await self._get("/dora/third-parties", params)
+
+    async def get_ict_third_party(
+        self, third_party_uuid: str,
+    ) -> IctThirdParty:
+        return _to_dataclass(
+            IctThirdParty,
+            await self._get(f"/dora/third-parties/{third_party_uuid}"),
+        )
+
+    async def update_ict_third_party(
+        self, third_party_uuid: str, **fields: Any,
+    ) -> IctThirdParty:
+        return _to_dataclass(
+            IctThirdParty,
+            await self._put(f"/dora/third-parties/{third_party_uuid}", fields),
+        )
+
+    async def create_dora_test(
+        self, *, test_type: str, title: str, scope: str,
+        conducted_at: str, conducted_by: str, status: str,
+        findings_summary: str | None = None,
+        remediation_plan: str | None = None,
+        remediation_due_at: str | None = None,
+    ) -> DoraTest:
+        body = _build_body(
+            test_type=test_type, title=title, scope=scope,
+            conducted_at=conducted_at, conducted_by=conducted_by,
+            status=status, findings_summary=findings_summary,
+            remediation_plan=remediation_plan,
+            remediation_due_at=remediation_due_at,
+        )
+        return _to_dataclass(DoraTest, await self._post("/dora/tests", body))
+
+    async def list_dora_tests(
+        self, *, test_type: str | None = None,
+        limit: int = 100, offset: int = 0,
+    ) -> dict:
+        params = _build_body(
+            test_type=test_type, limit=limit, offset=offset,
+        )
+        return await self._get("/dora/tests", params)
 
     async def get_action_explanation(self, action_uuid: str) -> ActionExplanation:
         data = await self._get(f"/actions/{action_uuid}/explanation")

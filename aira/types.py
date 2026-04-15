@@ -67,6 +67,74 @@ class ActionReceipt:
 
 
 @dataclass
+class DoraIncident:
+    """A DORA ICT incident record (Articles 17-19)."""
+
+    uuid: str
+    title: str
+    status: str
+    severity: str | None
+    category: str | None
+    is_major: bool
+    detected_at: str
+    classified_at: str | None
+    resolved_at: str | None
+    reported_at: str | None
+    clients_affected_count: int
+    has_report: bool
+    created_at: str
+    org_uuid: str | None = None
+    description: str | None = None
+    affected_services: list[str] | None = None
+    geographic_scope: list[str] | None = None
+    root_cause_summary: str | None = None
+    root_cause_classification: str | None = None
+    third_party_uuid: str | None = None
+    resolution_summary: str | None = None
+    lessons_learned: str | None = None
+    related_action_uuids: list[str] | None = None
+    report_content_hash: str | None = None
+    report_signature: str | None = None
+    report_signing_key_id: str | None = None
+    report_signed_at: str | None = None
+    report_pdf_size_bytes: int | None = None
+    request_id: str | None = None
+
+
+@dataclass
+class IctThirdParty:
+    """An ICT third-party service provider register entry (Articles 28-44)."""
+
+    uuid: str
+    org_uuid: str
+    vendor_name: str
+    service_description: str
+    service_type: str
+    criticality: str
+    contract_start_date: str | None
+    contract_end_date: str | None
+    exit_strategy_summary: str | None
+    subcontractors: list[str] | None
+    data_categories: list[str] | None
+    jurisdiction: str | None
+    is_active: bool
+    created_at: str
+    request_id: str | None = None
+
+
+@dataclass
+class DoraTest:
+    """A resilience test record (Articles 24-27)."""
+
+    uuid: str
+    test_type: str
+    title: str
+    conducted_at: str
+    conducted_by: str
+    status: str
+
+
+@dataclass
 class OutputPolicy:
     """Per-org output content-scan policy.
 

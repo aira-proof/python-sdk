@@ -40,18 +40,21 @@ from aira.types import (
     CosignResult,
     EscrowAccount,
     EscrowTransaction,
+    DoraIncident,
+    DoraTest,
     EvidencePackage,
     ExplanationVerification,
     FRAMEWORK_ANNEX_IV,
     FRAMEWORK_ART6,
     FRAMEWORK_ART9,
     FRAMEWORK_ART12,
+    IctThirdParty,
     OutputPolicy,
     PaginatedList,
     VerifyResult,
 )
 
-__version__ = "3.0.0"
+__version__ = "3.1.0"
 
 __all__ = [
     "Aira",
@@ -71,12 +74,15 @@ __all__ = [
     "CosignResult",
     "EscrowAccount",
     "EscrowTransaction",
+    "DoraIncident",
+    "DoraTest",
     "EvidencePackage",
     "ExplanationVerification",
     "FRAMEWORK_ANNEX_IV",
     "FRAMEWORK_ART6",
     "FRAMEWORK_ART9",
     "FRAMEWORK_ART12",
+    "IctThirdParty",
     "OutputPolicy",
     "PaginatedList",
     "VerifyResult",
