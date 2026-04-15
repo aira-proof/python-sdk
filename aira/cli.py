@@ -97,7 +97,7 @@ def actions_list(
 
         items = result.data
         table = Table(title=f"Actions ({len(items)})")
-        table.add_column("ID", style="dim", max_width=12)
+        table.add_column("UUID", style="dim", max_width=12)
         table.add_column("Type")
         table.add_column("Agent")
         table.add_column("Status")
@@ -211,7 +211,7 @@ def snapshot_create(
 @package_app.command("create")
 def package_create(
     title: str = typer.Option(..., "--title", "-t", help="Package title"),
-    actions: str = typer.Option(..., "--actions", "-a", help="Comma-separated action IDs"),
+    actions: str = typer.Option(..., "--actions", "-a", help="Comma-separated action UUIDs"),
     api_key: Optional[str] = _api_key_option,
     base_url: Optional[str] = _base_url_option,
 ):
