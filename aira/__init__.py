@@ -55,7 +55,7 @@ from aira.types import (
     VerifyResult,
 )
 
-__version__ = "3.1.0"
+__version__ = "3.2.0"
 
 __all__ = [
     "Aira",
