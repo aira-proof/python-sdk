@@ -27,6 +27,7 @@ Two-step flow:
 """
 
 from aira.client import Aira, AsyncAira, AiraError, AiraSession, AsyncAiraSession
+from aira.gateway import gateway_anthropic_kwargs, gateway_openai_kwargs
 from aira.types import (
     ActionExplanation,
     ActionReceipt,
@@ -86,4 +87,6 @@ __all__ = [
     "OutputPolicy",
     "PaginatedList",
     "VerifyResult",
+    "gateway_anthropic_kwargs",
+    "gateway_openai_kwargs",
 ]
