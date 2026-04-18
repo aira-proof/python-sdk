@@ -140,6 +140,23 @@ guardrail = AiraGuardrail(client=aira, agent_id="assistant-agent")
 search = guardrail.wrap_tool(search_tool, tool_name="web_search")
 ```
 
+## Webhook verification
+
+Verify incoming webhook deliveries from Aira. No extra dependencies — just HMAC-SHA256 signature checking.
+
+```python
+from aira.extras.webhooks import verify_signature
+
+# In your webhook handler
+is_valid = verify_signature(
+    payload=request.body,
+    signature=request.headers["X-Aira-Signature"],
+    secret=your_webhook_secret,
+)
+```
+
+`pip install aira-sdk[webhooks]` — no extra dependencies, the module is pure Python. This is server-to-server webhook verification, not related to the approval flow.
+
 ## Content scanning
 
 Verify agent outputs against your organization's endpoint whitelist. Configure allowed domains and content policies in the [dashboard](https://app.airaproof.com), enforce them at `authorize()` time.
