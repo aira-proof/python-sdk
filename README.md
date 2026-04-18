@@ -124,6 +124,7 @@ Both helpers return `base_url` and `default_headers` dicts. Self-hosted deployme
 | **AWS Bedrock** | `pip install aira-sdk[bedrock]` | gate |
 | **CrewAI** | `pip install aira-sdk[crewai]` | audit |
 | **MCP** | `pip install aira-sdk[mcp]` | adapter |
+| **Webhooks** | `pip install aira-sdk[webhooks]` | adapter |
 
 **gate** intercepts before execution and can deny. **audit** records after execution. **adapter** exposes Aira as tools the host framework can call.
 
