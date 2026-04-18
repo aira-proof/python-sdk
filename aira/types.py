@@ -45,12 +45,16 @@ class ActionReceipt:
     - ``"notarized"``: the action outcome was reported as ``"completed"`` and
       a cryptographic receipt has been minted. ``receipt_uuid``, ``payload_hash``,
       and ``signature`` are populated.
-    - ``"failed"``: the action outcome was reported as ``"failed"``. No
-      receipt is minted — signature/payload_hash/receipt_uuid will be ``None``.
+    - ``"failed"``: the action outcome was reported as ``"failed"``. An Ed25519
+      receipt is still minted so the failure is part of the audit trail.
+    - ``"denied"``: a policy denied the action at authorize-time. An Ed25519
+      receipt is minted for the denial so the audit trail has zero gaps.
+    - ``"denied_by_human"``: a human reviewer denied the action during the
+      approval flow. An Ed25519 receipt is minted for the denial.
     """
 
     action_uuid: str
-    status: str  # "notarized" | "failed"
+    status: str  # "notarized" | "failed" | "denied" | "denied_by_human"
     created_at: str
     request_id: str
     receipt_uuid: str | None = None

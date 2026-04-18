@@ -58,6 +58,8 @@ print(receipt.signature)  # ed25519:base64url...
 
 If the action requires human approval, `auth.status` returns `"pending_approval"` and you can enqueue it for review.
 
+> **Universal receipts** — Every action — authorized, denied, or failed — produces an Ed25519 receipt. The audit trail has zero gaps.
+
 ## Core methods
 
 | Method | Description |
