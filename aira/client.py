@@ -55,8 +55,10 @@ class AiraError(Exception):
         code: Error code string (e.g. ``"POLICY_DENIED"``, ``"NOT_FOUND"``).
         message: Human-readable error message from the backend.
         details: Optional dict with additional context from the backend.
-            For ``POLICY_DENIED`` errors this includes ``action_uuid`` and
-            ``policy_uuid`` of the policy that denied the action.
+            For ``POLICY_DENIED`` errors this includes ``action_uuid``,
+            ``policy_uuid`` of the policy that denied the action, and
+            ``receipt_uuid`` — the Ed25519 receipt minted for the denial
+            (universal receipts: every action state gets a receipt).
 
     There is a single error type — catch ``AiraError`` and branch on
     ``e.code`` (``"POLICY_DENIED"``, ``"INVALID_STATE"``, etc.). There are

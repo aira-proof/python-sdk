@@ -58,6 +58,8 @@ print(receipt.signature)  # ed25519:base64url...
 
 If the action requires human approval, `auth.status` returns `"pending_approval"` and you can enqueue it for review.
 
+> **Universal receipts** — Every action — authorized, denied, or failed — produces an Ed25519 receipt. The audit trail has zero gaps.
+
 ## Core methods
 
 | Method | Description |
@@ -122,6 +124,7 @@ Both helpers return `base_url` and `default_headers` dicts. Self-hosted deployme
 | **AWS Bedrock** | `pip install aira-sdk[bedrock]` | gate |
 | **CrewAI** | `pip install aira-sdk[crewai]` | audit |
 | **MCP** | `pip install aira-sdk[mcp]` | adapter |
+| **Webhooks** | `pip install aira-sdk[webhooks]` | adapter |
 
 **gate** intercepts before execution and can deny. **audit** records after execution. **adapter** exposes Aira as tools the host framework can call.
 
@@ -136,6 +139,23 @@ from aira.extras.openai_agents import AiraGuardrail
 guardrail = AiraGuardrail(client=aira, agent_id="assistant-agent")
 search = guardrail.wrap_tool(search_tool, tool_name="web_search")
 ```
+
+## Webhook verification
+
+Verify incoming webhook deliveries from Aira. No extra dependencies — just HMAC-SHA256 signature checking.
+
+```python
+from aira.extras.webhooks import verify_signature
+
+# In your webhook handler
+is_valid = verify_signature(
+    payload=request.body,
+    signature=request.headers["X-Aira-Signature"],
+    secret=your_webhook_secret,
+)
+```
+
+`pip install aira-sdk[webhooks]` — no extra dependencies, the module is pure Python. This is server-to-server webhook verification, not related to the approval flow.
 
 ## Content scanning
 
